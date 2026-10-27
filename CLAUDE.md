@@ -55,9 +55,9 @@ python -m unittest discover -s tests -t .
 - 配る物（`app/`・`desktop/`）の中身を変えたら、版を上げて記録する: `app/version.json` の `version` を上げ、`changelog` の先頭に 1 件足し、
   `python tools/release.py --release`（まだ配っていない版を直しただけなら `--amend`）。版を上げ忘れると `tests/test_version.py` が止める。
 - 窓（Tauri）を Linux で作るには WebKitGTK などが要る（`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev libayatana-appindicator3-dev`）。
-- Windows だけのコード（`#[cfg(windows)]`）は Linux の確かめではコンパイルされない。変えたときは、その部分を `windows` クレートだけに頼る
-  小さな作業用クレートへ写し、`rustup target add x86_64-pc-windows-msvc` のうえで `cargo clippy --target x86_64-pc-windows-msvc -- -D warnings` を通す
-  （窓全体は Linux から Windows 向けに組めない。Tauri の作る前の準備が Windows の道具を要るため）。本物の確かめは Windows の CI（`desktop.yml`）。
+- Windows だけのコード（`#[cfg(windows)]`）は Linux の確かめではコンパイルされない。変えたときは `python tools/wincheck.py` を通す
+  （その部分を `windows` クレートだけに頼る小さな作業用クレートへ写し、Windows 向けに clippy を流す。先に `rustup target add x86_64-pc-windows-msvc`。
+  窓全体は Linux から Windows 向けに組めない。Tauri の作る前の準備が Windows の道具を要るため）。本物の確かめは Windows の CI（`desktop.yml`）。
 - 起動・更新・配布の流れ（`desktop/src/` の `update.rs`・`distribute.rs`・`install.rs`・`main.rs`）を変えたら、`tools/verify.py` の通しを
   本物の窓で確かめる（Windows は CI。手元の Linux は `xvfb-run` の下で）。
 - 結果は**終了コードと「Ran … / OK / FAILED」「test result:」の行で**読む。出力の最後の 1 行だけ（`tail -1` など）で判断しない
