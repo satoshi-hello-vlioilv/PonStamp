@@ -122,7 +122,6 @@ function draw() {
 let raf = 0;
 function update() {
   syncUI();
-  openAdvancedIfRoom();
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(draw);
   scheduleSave();
@@ -288,20 +287,31 @@ async function init() {
   renderPresets();
   update();
   openAdvancedIfRoom();
-  $('details.adv > summary').addEventListener('click', () => { advAuto = false; });   // 利用者が自分で開け閉めした
+  // 利用者が自分で開け閉めした（押した後の形を覚える）
+  $('details.adv > summary').addEventListener('click', () => setTimeout(() => { try { localStorage.setItem(ADV_KEY, $('details.adv').open ? '1' : '0'); } catch { /* 覚えられなくても使える */ } }));
   addEventListener('resize', openAdvancedIfRoom);
   bindWindow();
   backend.ready().catch(() => {});
 }
 
-// 背の高い窓では詳細設定を開いておく（入力の列の空きを、使える操作で埋める）。開いて列に収まらなければ閉じる。
-// 種類を変えて入力が長くなったとき・窓の大きさを変えたときも確かめ直す。利用者が自分で開け閉めしたら、その形を守る
-let advAuto = true;
+// 詳細設定の開け閉め: 利用者が自分で開け閉めしたら、その形を覚えて守る（この PC の画面の覚え）。
+// 決めていなければ窓の大きさだけで決める: いちばん入力の多い日付印で詳細を開いても入力の列に収まる窓なら開く。
+// 種類を変えても開け閉めは変えない（勝手に開いたり閉じたりすると、欄を探させる）
+const ADV_KEY = 'ponstamp.advOpen';
+function advChoice() {
+  try { const v = localStorage.getItem(ADV_KEY); return v === null ? null : v === '1'; } catch { return null; }
+}
 function openAdvancedIfRoom() {
-  if (!advAuto) return;
   const adv = $('details.adv'), panel = $('.panel');
-  adv.open = innerHeight >= 860;
-  if (adv.open && panel.scrollHeight > panel.clientHeight + 1) adv.open = false;
+  const chosen = advChoice();
+  if (chosen !== null) { adv.open = chosen; return; }
+  // 日付印の欄を出した形で測ってから戻す（描く前なので、画面には出ない）
+  const shown = $$('[data-for]').map(el => [el, el.classList.contains('hidden')]);
+  shown.forEach(([el]) => el.classList.toggle('hidden', !el.dataset.for.split(' ').includes('date')));
+  adv.open = true;
+  const fits = panel.scrollHeight <= panel.clientHeight + 1;
+  shown.forEach(([el, was]) => el.classList.toggle('hidden', was));
+  adv.open = fits;
 }
 
 /** 新しい版を取り込んでいれば、設定のボタンに札を付ける（知らせの帯を閉じても、どこにあるか分かる） */
