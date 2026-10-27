@@ -79,9 +79,10 @@ async function clickType(page, type) {
 }
 
 async function openAdvanced(page) {
-  // 今の画面は <details class="adv">、案や作った後は data-open="advanced" の札を押す
-  const opener = page.locator('[data-open="advanced"], details.adv > summary').first();
-  if (await opener.count()) await opener.click();
+  // data-open="advanced" の札があれば押す（面を切り替える案）。無ければ <details class="adv"> を開く（最初から開いている案では閉じない）
+  const tab = page.locator('[data-open="advanced"]').first();
+  if (await tab.count()) await tab.click();
+  else await page.evaluate(() => { const d = document.querySelector('details.adv'); if (d) d.open = true; });
 }
 
 async function openSettings(page) {
