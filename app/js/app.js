@@ -65,21 +65,33 @@ function buildSwatches() {
   box.appendChild(h('label', { class: 'pick-other', title: '決まった色に無い色を選ぶ' }, pick, 'その他の色'));
 }
 
-// 大きさ: 単位（mm）は見出しに 1 回だけ。決まった大きさに無いときだけ「その他」の箱に値が出る（同じ値を 2 回並べない）
+// 大きさ: 単位（mm）は見出しに 1 回だけ。決まった大きさの札と、同じ形の「その他…」の札（押すと mm を打ち込む箱になる）。
+// 決まった大きさに無い値のときは、その札に値を出して選んだ形にする（同じ値を 2 回並べない）
+let sizeEditing = false;
 function buildSizes() {
   const box = $('#sizes');
   const cur = S.size[S.type];
   const sizes = TYPES[S.type].sizes;
-  const inp = h('input', { type: 'number', min: 5, max: 60, step: 0.5, placeholder: 'その他', value: sizes.includes(cur) ? '' : cur,
-    'aria-label': '大きさ（mm）を直接入れる', title: '5〜60mm を 0.5mm 刻みで' });
-  inp.addEventListener('change', () => {
-    if (inp.value === '') return;
-    const v = Number(inp.value);
-    if (!Number.isFinite(v) || v < 5 || v > 60) { toast('大きさは 5〜60mm で入れてください', true); return update(); }
-    S.size[S.type] = clamp(Math.round(v * 2) / 2, 5, 60);
-    update();
-  });
-  fill(box, sizes.map(mm => h('button', { type: 'button', 'aria-pressed': String(mm === cur), onclick: () => { S.size[S.type] = mm; update(); } }, mm)), inp);
+  const custom = !sizes.includes(cur);
+  const pick = (mm) => { sizeEditing = false; S.size[S.type] = mm; update(); };
+  let other;
+  if (sizeEditing) {
+    other = h('input', { type: 'number', min: 5, max: 60, step: 0.5, value: cur, 'aria-label': '大きさ（mm）を打ち込む', title: '5〜60mm を 0.5mm 刻みで。Enter で決める' });
+    const done = () => {
+      const v = Number(other.value);
+      if (other.value !== '' && (!Number.isFinite(v) || v < 5 || v > 60)) toast('大きさは 5〜60mm で入れてください', true);
+      else if (other.value !== '') S.size[S.type] = clamp(Math.round(v * 2) / 2, 5, 60);
+      sizeEditing = false;
+      update();
+    };
+    other.addEventListener('change', done);
+    other.addEventListener('keydown', e => { if (e.key === 'Escape') { sizeEditing = false; update(); } });
+    other.addEventListener('blur', () => { if (sizeEditing) done(); });
+  } else {
+    other = h('button', { type: 'button', 'aria-pressed': String(custom), title: '決まった大きさに無い大きさを mm で打ち込む',
+      onclick: () => { sizeEditing = true; buildSizes(); $('#sizes input')?.select(); } }, custom ? `${cur} mm` : 'その他…');
+  }
+  fill(box, sizes.map(mm => h('button', { type: 'button', 'aria-pressed': String(mm === cur), onclick: () => pick(mm) }, mm)), other);
 }
 
 function syncUI() {
@@ -107,6 +119,11 @@ function syncUI() {
     pick.parentElement.setAttribute('aria-pressed', String(!COLORS.some(c => c.v.toLowerCase() === S.color.toLowerCase())));
   }
   $$('[data-bg]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.bg === S.bg)));
+  // 日付の書式の例は今日（指定した日）の日付で出す
+  $$('[data-key="dateFmt"] option').forEach(o => { o.textContent = `${dateText({ ...S, dateFmt: o.value })}（${o.dataset.note || (o.dataset.note = o.textContent.replace(/^.*（/, '').replace(/）$/, ''))}）`; });
+  // 詳細設定を閉じていても、いまの値が見えるように
+  const font = $('#inFont').selectedOptions[0]?.textContent || '';
+  $('#advNow').textContent = `${font}・枠 ${S.border}・字 ${S.bold}・かすれ ${S.kasure}・傾き ${S.tilt}°`;
   $('#stage').className = `stage ${S.bg}`;
   buildSizes();
   const px = exportPx(S);
