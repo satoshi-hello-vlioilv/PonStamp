@@ -26,6 +26,27 @@ export function parseView(text) {
   return { width: Number(m[1]), height: Number(m[2]) };
 }
 
+/** 窓の答えの代わり（backend.js のブラウザの代わりが読む）: この PC へ写したアプリ・常駐あり・ショートカットあり・最新の版 */
+const DEMO = {
+  info: { shell: 'tauri', name: 'PonStamp', version: '1.0.0', installed: true, root: 'C:\\Users\\yamada\\AppData\\Local\\PonStamp' },
+  autostart: { on: true, can: true },
+  shortcut: { ask: false, links: ['C:\\Users\\yamada\\Desktop\\PonStamp.lnk', 'C:\\Users\\yamada\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\PonStamp.lnk'] },
+  update: { state: 'latest', current: '1.0.0', checkedAt: '2026-10-27 09:30', source: '\\\\fs01\\共有\\Releases' },
+  updateSource: '\\\\fs01\\共有\\Releases',
+  updateSourceUsed: '\\\\fs01\\共有\\Releases',
+  release: {
+    reachable: true, found: '\\\\fs01\\共有\\Releases', adjusted: false,
+    distributed: { version: '1.0.0', entry: 'PonStamp.exe' },
+    versions: [
+      { version: '1.0.1', placedAt: '2026-10-27T10:12:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9437184 },
+      { version: '1.0.0', placedAt: '2026-10-20T16:40:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9332736 },
+    ],
+    entry: { exists: true, path: '\\\\fs01\\共有\\Releases\\PonStamp\\PonStamp.exe' },
+    problems: [],
+  },
+  notes: [],
+};
+
 /** よく使う印を 3 つ登録した、使い込んだ状態（撮影の既定） */
 export const SEED = {
   presets: [
@@ -34,15 +55,22 @@ export const SEED = {
     { name: '社印', s: { type: 'square', square: '株式会社見本之印', color: '#d6343a', size: { mitome: 10.5, date: 15, square: 21 } } },
   ],
   outputDir: 'C:\\Users\\yamada\\Pictures\\電子印',
+  demo: DEMO,
 };
+/** 初めて開いた PC（登録した印なし・ショートカットを尋ねる） */
+const FIRST = { demo: { ...DEMO, shortcut: { ask: true, links: [] }, autostart: { on: false, can: true } } };
+/** 新しい版を取り込んだ所 */
+const UPDATE = { ...SEED, demo: { ...DEMO, update: { ...DEMO.update, state: 'ready', ready: '1.0.1', direction: 'up' } } };
 
 /** 撮る状態。順に流す（前の状態からの続き）。seed: 開く前に入れる覚え（null なら何も覚えていない初めての状態） */
 export const STATES = [
-  { name: 'first', seed: null, run: async () => {} },
+  { name: 'first', seed: FIRST, run: async () => {} },
   { name: 'mitome', seed: SEED, run: async () => {} },
   { name: 'date', seed: SEED, run: async (page) => clickType(page, 'date') },
   { name: 'square', seed: SEED, run: async (page) => clickType(page, 'square') },
   { name: 'advanced', seed: SEED, run: async (page) => openAdvanced(page) },
+  { name: 'update', seed: UPDATE, run: async () => {} },
+  { name: 'settings', seed: UPDATE, run: async (page) => openSettings(page) },
 ];
 export const STATE_NAMES = STATES.map((s) => s.name);
 
@@ -54,6 +82,13 @@ async function openAdvanced(page) {
   // 今の画面は <details class="adv">、案や作った後は data-open="advanced" の札を押す
   const opener = page.locator('[data-open="advanced"], details.adv > summary').first();
   if (await opener.count()) await opener.click();
+}
+
+async function openSettings(page) {
+  await page.locator('[data-open="settings"]').first().click();
+  const more = page.locator('#setDistribution > summary');
+  if (await more.count()) await more.click();
+  await page.waitForTimeout(150);
 }
 
 function serve() {

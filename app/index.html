@@ -12,7 +12,9 @@
   <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー</div>
   <nav class="presets" id="presetBar" aria-label="登録した印"></nav>
   <button type="button" class="btn small" id="btnAddPreset" title="現在の設定を「よく使う印」に登録">＋ 登録</button>
+  <button type="button" class="btn small" id="btnSettings" data-open="settings" title="保存先・常駐・更新・配布">設定</button>
 </header>
+<div class="notices" id="notices" hidden></div>
 
 <main class="layout">
   <!-- 左：設定 -->
@@ -89,21 +91,6 @@
           <button type="button" class="btn small" id="btnReseed">かすれ模様を変える</button>
           <button type="button" class="btn small" id="btnResetAdv">詳細を初期値に戻す</button>
         </div>
-        <div class="field">
-          <label for="inDpi">解像度</label>
-          <select id="inDpi" data-key="dpi">
-            <option value="300">300 dpi（軽量）</option>
-            <option value="600">600 dpi（標準）</option>
-            <option value="1200">1200 dpi（高精細）</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="inOut">PNG の保存先フォルダ</label>
-          <div class="row">
-            <input id="inOut" type="text" autocomplete="off">
-            <button type="button" class="btn small" id="btnOutSave">変更</button>
-          </div>
-        </div>
       </div>
     </details>
   </section>
@@ -138,6 +125,16 @@
       <button type="submit" class="btn primary small" value="ok">登録</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlgSettings" class="settings-dlg" aria-labelledby="dlgSettingsTitle">
+  <div class="dlg-head"><h1 id="dlgSettingsTitle">設定</h1><button type="button" class="btn small quiet" data-close aria-label="閉じる">閉じる</button></div>
+  <div class="settings" id="settings"></div>
+</dialog>
+
+<dialog id="dlgHistory" aria-labelledby="dlgHistoryTitle">
+  <div class="dlg-head"><h1 id="dlgHistoryTitle">更新履歴</h1><button type="button" class="btn small quiet" data-close aria-label="閉じる">閉じる</button></div>
+  <div class="history" id="history"></div>
 </dialog>
 
 <script type="module" src="js/app.js"></script>

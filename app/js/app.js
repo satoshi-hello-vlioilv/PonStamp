@@ -1,4 +1,6 @@
 import { backend } from './backend.js';
+import { fill, h } from './dom.js';
+import { createNotices, createSettings, loadHistory } from './settings.js';
 import { ADV_DEFAULTS, COLORS, DEFAULTS, FONT_CANDIDATES, TYPES, clamp, clone, dateText, exportPx, merge, render, stampDate, todayISO } from './stamp.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -172,7 +174,7 @@ function renderPresets() {
     render(cv, merge(DEFAULTS, p.s), 52);
     load.append(cv, document.createTextNode(p.name));
     load.addEventListener('click', () => {
-      S = merge(DEFAULTS, { ...p.s, bg: S.bg, dpi: p.s.dpi || S.dpi });
+      S = merge(DEFAULTS, { ...p.s, bg: S.bg, dpi: S.dpi });   // 解像度は設定（印ごとではない）
       if (!fonts.some(([f]) => f === S.font) && fonts.length) S.font = fonts[0][0];
       update();
       toast(`「${p.name}」を呼び出しました`);
@@ -251,13 +253,8 @@ function bind() {
   $('#btnSave').addEventListener('click', saveStamp);
   $('#btnFolder').addEventListener('click', () => backend.openFolder().catch(e => toast(e.message, true)));
   $('#btnAddPreset').addEventListener('click', openPresetDialog);
-  $('#btnOutSave').addEventListener('click', async () => {
-    try {
-      const j = await backend.setSettings({ outputDir: $('#inOut').value });
-      $('#inOut').value = j.outputDir;
-      toast('保存先を変更しました');
-    } catch (e) { toast(e.message, true); }
-  });
+  $('#btnSettings').addEventListener('click', () => $('#dlgSettings').showModal());
+  $$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
 
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey;
@@ -285,7 +282,8 @@ async function init() {
   try { st = await backend.load(); } catch (e) { toast('設定を読み込めませんでした（初期値で起動）', true); }
   S = merge(DEFAULTS, st.last);
   presets = Array.isArray(st.presets) ? st.presets.filter(p => p && p.name && p.s) : [];
-  $('#inOut').value = st.outputDir || '';
+  settings.refresh(st);
+  notices.refresh(st);
   buildFonts();
   buildSwatches();
   bind();
@@ -296,6 +294,22 @@ async function init() {
   backend.ready().catch(() => {});
 }
 
+/* ================================================================ 設定と知らせ */
+const settings = createSettings($('#settings'), {
+  backend, toast,
+  getDpi: () => S.dpi,
+  setDpi: (v) => { S.dpi = v; update(); },
+  openHistory: () => openHistory(),
+  onChange: () => notices.refresh(settings.state),
+});
+const notices = createNotices($('#notices'), { backend, toast, onChange: () => settings.refresh({}) });
+
+async function openHistory() {
+  const list = await loadHistory();
+  fill($('#history'), list.map(e => h('section', {}, h('h2', {}, `版 ${e.version}`, h('small', {}, e.date)), h('ul', {}, e.notes.map(n => h('li', {}, n))))));
+  $('#dlgHistory').showModal();
+}
+
 /* ================================================================ 窓からの知らせ */
 // トレイの「押すとコピー」: 窓が隠れていても、ここで描いて Rust のクリップボードへ置き、右下に知らせを出す
 function bindWindow() {
@@ -303,7 +317,7 @@ function bindWindow() {
     const p = which === 'last' ? { name: '前回の印', s: S } : presets[Number(which)];
     if (!p) return;
     try {
-      const s = merge(DEFAULTS, { ...p.s, dpi: p.s.dpi || S.dpi });
+      const s = merge(DEFAULTS, { ...p.s, dpi: S.dpi });
       const bytes = await pngBytes(render(document.createElement('canvas'), s, exportPx(s)));
       await backend.copyPng(bytes, s.dpi);
       backend.notify?.(`「${p.name}」をコピーしました。貼り付け先で Ctrl+V`);
@@ -312,6 +326,8 @@ function bindWindow() {
     }
   });
   backend.on('ps:shown', () => { if (S.type === 'date' && S.dateAuto) update(); });
+  backend.on('ps:update', (u) => { settings.setUpdate(u); notices.setUpdate(u); });
+  backend.on('ps:settings', async () => settings.refresh(await backend.load()));
 }
 
 // 自己診断（desktop/src/selftest.js）が使う口: 印を書き出す（画面の描き方そのまま）

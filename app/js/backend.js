@@ -49,7 +49,10 @@ function tauriBackend() {
   };
 }
 
-/** ふつうのブラウザ: 窓が無いので、覚えるのは localStorage、保存はダウンロード */
+/**
+ * ふつうのブラウザ: 窓が無いので、覚えるのは localStorage、保存はダウンロード。
+ * 撮影（tools/ui-harness.mjs）では、覚えの demo に窓の答え（版・常駐・ショートカット・更新・配布）を入れて、その状態の画面を見せる
+ */
 function browserBackend() {
   const KEY = 'ponstamp.state';
   const read = () => {
@@ -68,7 +71,9 @@ function browserBackend() {
     }
     return st;
   };
+  const demo = () => read().demo || null;
   const windowOnly = async () => {
+    if (demo()) return {};
     throw new Error('この機能はアプリ（exe）の中だけで使えます');
   };
   return {
@@ -76,9 +81,10 @@ function browserBackend() {
       const st = read();
       return {
         presets: st.presets || [], last: st.last || null, outputDir: st.outputDir || 'ダウンロード',
-        updateSource: st.updateSource || '', autostart: false,
+        updateSource: st.updateSource || '', autostart: { on: false, can: false },
         info: { shell: 'browser', version: '', installed: false },
-        shortcut: { ask: false }, update: { state: 'off' },
+        shortcut: { ask: false }, update: { state: 'off' }, notes: [],
+        ...(st.demo || {}),
       };
     },
     saveLast: async (s) => void write({ last: s }),
@@ -94,14 +100,19 @@ function browserBackend() {
     openFolder: windowOnly,
     reveal: windowOnly,
     pickFolder: windowOnly,
-    setAutostart: windowOnly,
-    updateStatus: async () => ({ state: 'off' }),
+    setAutostart: async (on) => {
+      if (!demo()) return windowOnly();
+      const d = demo();
+      write({ demo: { ...d, autostart: { ...d.autostart, on } } });
+      return { ...d.autostart, on };
+    },
+    updateStatus: async () => demo()?.update || { state: 'off' },
     updateCheck: windowOnly,
     updateApply: windowOnly,
     probeSource: windowOnly,
     shortcutMake: windowOnly,
     shortcutDecline: windowOnly,
-    releaseView: windowOnly,
+    releaseView: async () => demo()?.release || windowOnly(),
     releasePlace: windowOnly,
     releaseDistribute: windowOnly,
     releaseRemove: windowOnly,
