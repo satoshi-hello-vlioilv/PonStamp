@@ -1,6 +1,6 @@
 [package]
 name = "ponstamp-desktop"
-version = "1.0.0"
+version = "1.1.0"
 description = "PonStamp（電子印メーカー）の窓・常駐・配布と更新"
 edition = "2021"
 rust-version = "1.90"

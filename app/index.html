@@ -19,7 +19,7 @@
     <h2 class="rail-h">登録した印</h2>
     <nav class="presets" id="presetBar" aria-label="登録した印（押すと呼び出す）"></nav>
     <button type="button" class="btn small" id="btnAddPreset" title="いま作っている印を登録します">＋ いまの印を登録</button>
-    <p class="rail-tip"><b>通知領域からも使えます</b>右下の印のアイコンを右クリックして、登録した印を押すとそのままコピーされます。</p>
+    <p class="rail-tip"><b>右クリックからもコピーできます</b>右下の印のアイコン、またはデスクトップ・フォルダの何も無い所を右クリックして（Windows 11 は「その他のオプションを確認」の中）、登録した印を押します。</p>
   </aside>
   <div class="work">
   <div class="notices" id="notices" hidden></div>
@@ -51,13 +51,12 @@
         <input id="inDate" type="date" data-key="date" aria-label="日付を指定">
       </div>
       <div class="row mt">
-        <select data-key="dateFmt" aria-label="日付の書式">
-          <option value="y2">’26.10.26（西暦2桁）</option>
-          <option value="y4">2026.10.26（西暦4桁）</option>
-          <option value="r">R8.10.26（令和）</option>
-          <option value="rn">8.10.26（令和・記号なし）</option>
-        </select>
+        <select id="inDateFmt" data-key="dateFmt" aria-label="日付の書式（年の書き方）"></select>
         <label class="check nowrap"><input type="checkbox" data-key="pad"> 0埋め</label>
+      </div>
+      <div class="row mt">
+        <span class="lbl">区切り</span>
+        <div class="pills" id="dateSeps" role="group" aria-label="日付の区切り"></div>
       </div>
     </div>
 
@@ -80,9 +79,16 @@
       <div class="swatches" id="swatches"></div>
     </div>
 
-    <div class="field">
-      <span class="lbl">大きさ（mm・印影の直径／一辺）</span>
-      <div class="sizes" id="sizes"></div>
+    <div class="field slider" id="sizeField">
+      <div class="lblrow"><label for="rgSize">大きさ（印影の直径／一辺）</label>
+        <span class="val"><input id="inSize" type="number" min="5" max="60" step="0.5" aria-label="大きさ（mm）"> mm</span></div>
+      <input id="rgSize" type="range" step="0.5" aria-describedby="sizeTicks">
+      <div class="ticks" id="sizeTicks" aria-label="よく使う大きさ"></div>
+    </div>
+
+    <div class="field slider">
+      <div class="lblrow"><label for="rgText">字の大きさ</label><output data-out="textSize"></output></div>
+      <input id="rgText" type="range" min="60" max="110" step="5" data-key="textSize">
     </div>
 
     <details class="adv">
@@ -93,7 +99,7 @@
           <select id="inFont" data-key="font"></select>
         </div>
         <div class="range"><label for="rgBorder">枠の太さ</label><input id="rgBorder" type="range" min="1.5" max="9" step="0.5" data-key="border"><output data-out="border"></output></div>
-        <div class="range"><label for="rgBold">文字の太さ</label><input id="rgBold" type="range" min="0" max="10" step="1" data-key="bold"><output data-out="bold"></output></div>
+        <div class="range"><label for="rgBold">字の太さ</label><input id="rgBold" type="range" min="0" max="10" step="1" data-key="bold"><output data-out="bold"></output></div>
         <div class="range"><label for="rgKasure">かすれ</label><input id="rgKasure" type="range" min="0" max="100" step="5" data-key="kasure"><output data-out="kasure"></output></div>
         <div class="range"><label for="rgTilt">傾き</label><input id="rgTilt" type="range" min="-15" max="15" step="1" data-key="tilt"><output data-out="tilt"></output></div>
         <div class="row">
@@ -112,9 +118,9 @@
     <div class="meta" id="meta"></div>
     <div class="bgrow">
       <span class="lbl">プレビューの地</span>
-      <div class="bgtoggle" role="group" aria-label="プレビューの地">
-        <button type="button" data-bg="checker">透明</button>
-        <button type="button" data-bg="paper">白紙</button>
+      <div class="pills small" role="group" aria-label="プレビューの地">
+        <button type="button" data-choice="bg" data-v="checker">透明</button>
+        <button type="button" data-choice="bg" data-v="paper">白紙</button>
       </div>
       <span class="hint">書き出す PNG はいつも透明です</span>
     </div>

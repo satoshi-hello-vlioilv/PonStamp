@@ -2,9 +2,10 @@
 
 /* ================================================================ 定義 */
 export const TYPES = {
-  mitome: { label: '認印',   sizes: [9, 10.5, 12, 13.5, 15] },
-  date:   { label: '日付印', sizes: [12, 15, 18, 21] },
-  square: { label: '角印',   sizes: [15, 18, 21, 24, 30] },
+  // sizes: よく使う大きさ（目盛り）・range: スライダーの幅（mm。打ち込めば 5〜60mm）
+  mitome: { label: '認印',   sizes: [9, 10.5, 12, 13.5, 15], range: [6, 18] },
+  date:   { label: '日付印', sizes: [12, 15, 18, 21],        range: [10, 24] },
+  square: { label: '角印',   sizes: [15, 18, 21, 24, 30],    range: [12, 36] },
 };
 export const COLORS = [
   { name: '朱色', v: '#d6343a' }, { name: '赤', v: '#e60012' }, { name: 'えんじ', v: '#9e1f2b' },
@@ -29,9 +30,18 @@ const REF = '国';        // 文字枠合わせの基準字
 // 字の縦横の伸び縮みの上限（長体・平体）。和文の組版で長体・平体を 70% までに留める慣習（1/0.7 ≈ 1.43）に合わせる。
 // これを超えて枠に合わせると、字が棒のように潰れたり引き伸ばされたりする（tools/stamp-eval.mjs が測る）
 export const MAX_DISTORT = 1.4;
-export const ADV_DEFAULTS = { border: 4, bold: 2, kasure: 10, tilt: 0 };
+export const ADV_DEFAULTS = { border: 4, bold: 2, kasure: 10, tilt: 0, textSize: 100 };
+/** 字の大きさ（%）。100 = 並べ方が決める標準の大きさ。上限は種類ごとに、字と枠の隙間の基準（2.5%）を守れる所
+ * （tools/stamp-eval.mjs --text で測った: 認印・日付印は 112% まで・角印は 100% まで基準内。少し余裕を取る） */
+export const TEXT_SIZE = { min: 60, max: { mitome: 110, date: 110, square: 100 } };
+/** 日付の書式（年の書き方）と区切り。例は今日の日付で画面が作る */
+export const DATE_FORMATS = [
+  { v: 'y2', note: '西暦2桁' }, { v: 'y2n', note: '西暦2桁・記号なし' }, { v: 'y4', note: '西暦4桁' },
+  { v: 'r', note: '令和（R）' }, { v: 'rk', note: '令和（漢字）' }, { v: 'rn', note: '令和・数字だけ' },
+];
+export const DATE_SEPS = [{ v: '.', label: '.' }, { v: '/', label: '/' }, { v: '-', label: '-' }, { v: 'kanji', label: '年月日' }];
 export const DEFAULTS = {
-  type: 'mitome', name: '山田', dept: '総務課', dateAuto: true, date: '', dateFmt: 'y2', pad: false,
+  type: 'mitome', name: '山田', dept: '総務課', dateAuto: true, date: '', dateFmt: 'y2', dateSep: '.', pad: false,
   square: '株式会社見本之印', sqCols: 'auto', color: '#d6343a', font: '',
   ...ADV_DEFAULTS, seed: 1, dpi: 600, bg: 'checker',
   size: { mitome: 10.5, date: 15, square: 21 },
@@ -70,16 +80,16 @@ export function dateText(s) {
   const d = stampDate(s);
   const y = d.getFullYear(), m = d.getMonth() + 1, dd = d.getDate();
   const p = v => (s.pad ? String(v).padStart(2, '0') : String(v));
-  switch (s.dateFmt) {
-    case 'y4': return `${y}.${p(m)}.${p(dd)}`;
-    case 'r':  return `R${y - 2018}.${p(m)}.${p(dd)}`;
-    case 'rn': return `${y - 2018}.${p(m)}.${p(dd)}`;
-    default:   return `’${String(y % 100).padStart(2, '0')}.${p(m)}.${p(dd)}`;
-  }
+  const yy = String(y % 100).padStart(2, '0'), ry = y - 2018;
+  const year = { y4: y, y2n: yy, r: `R${ry}`, rk: `令和${ry}`, rn: ry }[s.dateFmt] ?? `'${yy}`;
+  if (s.dateSep === 'kanji') return `${year}年${p(m)}月${p(dd)}日`;
+  const sep = ['/', '-'].includes(s.dateSep) ? s.dateSep : '.';
+  return `${year}${sep}${p(m)}${sep}${p(dd)}`;
 }
 const chars = str => [...String(str || '').replace(/\s/g, '')];
 
 /* ================================================================ 描画 */
+const textScale = s => clamp(Number(s.textSize) || 100, TEXT_SIZE.min, TEXT_SIZE.max[s.type] ?? 100) / 100;
 function fontStack(f) { return f ? `"${f}", ${FALLBACK}` : FALLBACK; }
 
 // 描く物の選び（評価関数が枠と字を分けて測る）と、字ごとの伸び縮みの記録。render の間だけ効く
@@ -89,6 +99,7 @@ const note = (ch, sx, sy, cx, cy, w, h) => job.trace && job.trace.push({ ch, sx,
 // 1文字を枠(w×h)に合わせて描画。基準字「国」で拡大率を決め、縦長の印鑑らしい字形に
 function glyph(ctx, ch, cx, cy, w, h, s) {
   if (!ch || !job.text) return;
+  w *= textScale(s); h *= textScale(s);
   ctx.save();
   ctx.font = `${FS}px ${fontStack(s.font)}`;
   const sw = s.bold * FS / 100;
@@ -113,6 +124,7 @@ function glyph(ctx, ch, cx, cy, w, h, s) {
 // 横には伸ばさず、長い行は MAX_DISTORT まで横に詰め、それでも入らなければ字を小さくする
 function line(ctx, str, cx, cy, w, h, s) {
   if (!str || !job.text) return;
+  w *= textScale(s); h *= textScale(s);
   ctx.save();
   ctx.font = `${FS}px ${fontStack(s.font)}`;
   const sw = s.bold * FS / 100;
@@ -257,23 +269,47 @@ function sample(a, G, u, v) {
   const i = y0 * (G + 1) + x0;
   return (a[i] * (1 - sx) + a[i + 1] * sx) * (1 - sy) + (a[i + G + 1] * (1 - sx) + a[i + G + 2] * sx) * sy;
 }
+// かすれ（k: 0〜1）。強さに沿って欠けが一定に増えるように（tools/kasure-eval.mjs が測る）、消える所は境をぼかして薄れさせ、
+// インクの縁も少しにじませる（朱肉が紙に移った形）。いちばん強くても字が読める所で止める
+const KASURE = { from: 0.10, span: 0.33, curve: 0.6, soft: 0.12, blur: 0.003, grain: 0.04, fine: 0.25, depth: k => 0.5 + 0.35 * k };
+function blurAlpha(d, px, r) {
+  if (r < 1) return;
+  const a = new Float32Array(px * px), b = new Float32Array(px * px);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+  const pass = (src, dst, horizontal) => {
+    const n = 2 * r + 1;
+    for (let o = 0; o < px; o++) {
+      let acc = 0;
+      const at = (i) => src[horizontal ? o * px + Math.min(px - 1, Math.max(0, i)) : Math.min(px - 1, Math.max(0, i)) * px + o];
+      for (let i = -r; i <= r; i++) acc += at(i);
+      for (let i = 0; i < px; i++) {
+        dst[horizontal ? o * px + i : i * px + o] = acc / n;
+        acc += at(i + r + 1) - at(i - r);
+      }
+    }
+  };
+  pass(a, b, true); pass(b, a, false);
+  for (let i = 0; i < a.length; i++) d[i * 4 + 3] = a[i];
+}
 function applyKasure(ctx, px, k, seed) {
   const rnd = mulberry32(seed * 9973 + 7);
-  const G1 = 40, G2 = 140;
+  const G1 = 36, G2 = 90;
   const g1 = makeGrid(G1, rnd), g2 = makeGrid(G2, rnd);
   const grain = mulberry32(seed + 101);
   const img = ctx.getImageData(0, 0, px, px);
   const d = img.data;
-  const t = 0.2 + k * 0.45;
+  blurAlpha(d, px, Math.round(px * KASURE.blur * k));
+  const t = KASURE.from + KASURE.span * k ** KASURE.curve - KASURE.soft / 2;
   for (let y = 0; y < px; y++) {
     const v1 = y / px * G1, v2 = y / px * G2;
     for (let x = 0; x < px; x++) {
       const idx = (y * px + x) * 4 + 3;
       if (d[idx] === 0) continue;
-      const n = sample(g1, G1, x / px * G1, v1) * 0.6 + sample(g2, G2, x / px * G2, v2) * 0.4;
-      let f = (n - t) / 0.08;
-      f = f < 0 ? 0 : f > 1 ? 1 : f;
-      f *= 1 - k * 0.25 * grain();
+      const n = sample(g1, G1, x / px * G1, v1) * (1 - KASURE.fine) + sample(g2, G2, x / px * G2, v2) * KASURE.fine;
+      let f = (n - t) / KASURE.soft;
+      f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
+      f = 1 - KASURE.depth(k) * (1 - f);   // 消し切らずに薄れさせる（強いほど深く）
+      f *= 1 - k * KASURE.grain * grain();
       d[idx] = d[idx] * f;
     }
   }

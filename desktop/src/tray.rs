@@ -14,7 +14,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 const ID: &str = "main";
 /// メニューに直に並べる登録した印の数（多いときは窓から）。
-const PRESETS_IN_MENU: usize = 10;
+pub const PRESETS_IN_MENU: usize = 10;
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let icon = tauri::image::Image::from_bytes(include_bytes!("../../app/stamp.ico"))?;

@@ -1,7 +1,7 @@
 import { backend } from './backend.js';
 import { fill, h } from './dom.js';
 import { createNotices, createSettings, loadHistory } from './settings.js';
-import { ADV_DEFAULTS, COLORS, DEFAULTS, FONT_CANDIDATES, TYPES, clamp, clone, dateText, exportPx, merge, render, stampDate, todayISO } from './stamp.js';
+import { ADV_DEFAULTS, COLORS, DATE_FORMATS, DATE_SEPS, DEFAULTS, FONT_CANDIDATES, TEXT_SIZE, TYPES, clamp, clone, dateText, exportPx, merge, render, stampDate, todayISO } from './stamp.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -65,33 +65,43 @@ function buildSwatches() {
   box.appendChild(h('label', { class: 'pick-other', title: '決まった色に無い色を選ぶ' }, pick, 'その他の色'));
 }
 
-// 大きさ: 単位（mm）は見出しに 1 回だけ。決まった大きさの札と、同じ形の「その他…」の札（押すと mm を打ち込む箱になる）。
-// 決まった大きさに無い値のときは、その札に値を出して選んだ形にする（同じ値を 2 回並べない）
-let sizeEditing = false;
-function buildSizes() {
-  const box = $('#sizes');
-  const cur = S.size[S.type];
-  const sizes = TYPES[S.type].sizes;
-  const custom = !sizes.includes(cur);
-  const pick = (mm) => { sizeEditing = false; S.size[S.type] = mm; update(); };
-  let other;
-  if (sizeEditing) {
-    other = h('input', { type: 'number', min: 5, max: 60, step: 0.5, value: cur, 'aria-label': '大きさ（mm）を打ち込む', title: '5〜60mm を 0.5mm 刻みで。Enter で決める' });
-    const done = () => {
-      const v = Number(other.value);
-      if (other.value !== '' && (!Number.isFinite(v) || v < 5 || v > 60)) toast('大きさは 5〜60mm で入れてください', true);
-      else if (other.value !== '') S.size[S.type] = clamp(Math.round(v * 2) / 2, 5, 60);
-      sizeEditing = false;
-      update();
-    };
-    other.addEventListener('change', done);
-    other.addEventListener('keydown', e => { if (e.key === 'Escape') { sizeEditing = false; update(); } });
-    other.addEventListener('blur', () => { if (sizeEditing) done(); });
-  } else {
-    other = h('button', { type: 'button', 'aria-pressed': String(custom), title: '決まった大きさに無い大きさを mm で打ち込む',
-      onclick: () => { sizeEditing = true; buildSizes(); $('#sizes input')?.select(); } }, custom ? `${cur} mm` : 'その他…');
-  }
-  fill(box, sizes.map(mm => h('button', { type: 'button', 'aria-pressed': String(mm === cur), onclick: () => pick(mm) }, mm)), other);
+// 大きさ: スライダー（種類ごとの幅）と、よく使う大きさの目盛り（押すとその大きさ）と、mm を打ち込む箱。3 つは同じ値を指す
+function sizeRange() {
+  const [lo, hi] = TYPES[S.type].range, cur = S.size[S.type];
+  return [Math.min(lo, cur), Math.max(hi, cur)];
+}
+function setSize(mm) {
+  if (!Number.isFinite(mm)) return;
+  S.size[S.type] = clamp(Math.round(mm * 2) / 2, 5, 60);
+  update();
+}
+function buildSize() {
+  const rg = $('#rgSize'), num = $('#inSize');
+  rg.addEventListener('input', () => setSize(Number(rg.value)));
+  num.addEventListener('change', () => {
+    const v = Number(num.value);
+    if (num.value === '' || v < 5 || v > 60) { toast('大きさは 5〜60mm で入れてください', true); update(); return; }
+    setSize(v);
+  });
+}
+function syncSize() {
+  const rg = $('#rgSize'), num = $('#inSize'), cur = S.size[S.type];
+  const [lo, hi] = sizeRange();
+  rg.min = lo; rg.max = hi; rg.value = cur;
+  rg.style.setProperty('--fill', `${(cur - lo) / (hi - lo) * 100}%`);
+  if (num !== document.activeElement) num.value = cur;
+  // 目盛りは、つまみの中心と同じ所に置く（つまみの幅の分だけ両端を内に寄せる: CSS の --thumb）
+  fill($('#sizeTicks'), TYPES[S.type].sizes.map(mm => h('button', {
+    type: 'button', style: `--at:${(mm - lo) / (hi - lo)}`, 'aria-pressed': String(mm === cur), title: `${mm}mm にする`,
+    onclick: () => setSize(mm),
+  }, mm)));
+}
+
+// 日付の書式（例は今日・指定した日の日付）と区切り
+function buildDate() {
+  const sel = $('#inDateFmt');
+  for (const f of DATE_FORMATS) sel.add(new Option('', f.v));
+  fill($('#dateSeps'), DATE_SEPS.map(d => h('button', { type: 'button', 'data-choice': 'dateSep', 'data-v': d.v, title: `区切りを「${d.label}」にする` }, d.label)));
 }
 
 function syncUI() {
@@ -110,22 +120,23 @@ function syncUI() {
   if (S.dateAuto || !S.date) di.value = todayISO();
   $$('[data-out]').forEach(o => {
     const k = o.dataset.out;
-    o.textContent = k === 'tilt' ? `${S[k]}°` : String(S[k]);
+    o.textContent = k === 'tilt' ? `${S[k]}°` : k === 'textSize' ? `${Math.min(S[k], TEXT_SIZE.max[S.type])}%` : String(S[k]);
   });
+  $$('[data-choice]').forEach(b => b.setAttribute('aria-pressed', String(S[b.dataset.choice] === b.dataset.v)));
+  $('#rgText').max = TEXT_SIZE.max[S.type];
   $$('#swatches [data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === S.color.toLowerCase())));
   const pick = $('#inColor');
   if (pick) {
     pick.value = S.color;
     pick.parentElement.setAttribute('aria-pressed', String(!COLORS.some(c => c.v.toLowerCase() === S.color.toLowerCase())));
   }
-  $$('[data-bg]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.bg === S.bg)));
-  // 日付の書式の例は今日（指定した日）の日付で出す
-  $$('[data-key="dateFmt"] option').forEach(o => { o.textContent = `${dateText({ ...S, dateFmt: o.value })}（${o.dataset.note || (o.dataset.note = o.textContent.replace(/^.*（/, '').replace(/）$/, ''))}）`; });
+  // 日付の書式の例は今日（指定した日）の日付・いまの区切りで出す
+  $$('#inDateFmt option').forEach((o, i) => { o.textContent = `${dateText({ ...S, dateFmt: o.value })}（${DATE_FORMATS[i].note}）`; });
   // 詳細設定を閉じていても、いまの値が見えるように
   const font = $('#inFont').selectedOptions[0]?.textContent || '';
-  $('#advNow').textContent = `${font}・枠 ${S.border}・字 ${S.bold}・かすれ ${S.kasure}・傾き ${S.tilt}°`;
+  $('#advNow').textContent = `${font}・枠 ${S.border}・字の太さ ${S.bold}・かすれ ${S.kasure}・傾き ${S.tilt}°`;
   $('#stage').className = `stage ${S.bg}`;
-  buildSizes();
+  syncSize();
   const px = exportPx(S);
   $('#meta').textContent = `${TYPES[S.type].label}　${S.size[S.type]}mm ・ ${S.dpi}dpi → ${px}×${px}px`;
 }
@@ -254,7 +265,11 @@ function bind() {
     });
   });
 
-  $$('[data-bg]').forEach(b => b.addEventListener('click', () => { S.bg = b.dataset.bg; update(); }));
+  // 選ぶ札（data-choice=キー・data-v=値）: 押すとその値にする
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-choice]');
+    if (b) { S[b.dataset.choice] = b.dataset.v; update(); }
+  });
   $('#btnReseed').addEventListener('click', () => {
     S.seed = 1 + Math.floor(Math.random() * 100000);
     if (S.kasure === 0) S.kasure = ADV_DEFAULTS.kasure;
@@ -299,6 +314,8 @@ async function init() {
   markUpdate(st.update);
   buildFonts();
   buildSwatches();
+  buildSize();
+  buildDate();
   bind();
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   renderPresets();

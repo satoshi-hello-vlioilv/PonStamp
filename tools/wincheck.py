@@ -16,7 +16,7 @@ from pathlib import Path
 
 DESKTOP = Path(__file__).resolve().parents[1] / "desktop"
 # Windows の部分を持つファイル（mod imp を #[cfg(windows)] で分けてある物）
-FILES = ("lnk", "clip", "autostart", "proc")
+FILES = ("lnk", "clip", "autostart", "proc", "shellmenu")
 # 写した部分が使う ps_core の型の代わり
 SHIM = ("pub mod ps_core { pub mod install { #[derive(Debug, Clone, PartialEq)] pub struct Link { "
         "pub target: std::path::PathBuf, pub workdir: std::path::PathBuf, pub icon: std::path::PathBuf } } }")

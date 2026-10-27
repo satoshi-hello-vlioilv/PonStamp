@@ -1,6 +1,6 @@
 // 印影の精度の評価関数（開発用）: 見本（stamp-samples.mjs）を本物の描き方（app/js/stamp.js）で描き、数で測って基準と比べる。
 //
-//   node tools/stamp-eval.mjs [--json 出力.json] [--font "IPAexMincho"]
+//   node tools/stamp-eval.mjs [--json 出力.json] [--font "IPAexMincho"] [--text 100]（字の大きさ %。既定は 100 = いちばん大きい字）
 //
 // 測る物（枠と字を描き分けて、インクで測る）:
 //   ゆがみ   字の縦横の伸び縮みの比（1.0 = 字の形のまま）。描くときの記録（trace）から
@@ -26,7 +26,7 @@ const app = await launch();
 let rows;
 try {
   const page = await app.newPage({ ...STATES[1], seed: SEED }, { width: 1000, height: 800 });
-  rows = await page.evaluate(async ({ samples, px, font }) => {
+  rows = await page.evaluate(async ({ samples, px, font, textSize }) => {
     const alpha = (cv) => {
       const d = cv.getContext('2d').getImageData(0, 0, px, px).data;
       const a = new Uint8Array(px * px);
@@ -51,7 +51,7 @@ try {
     };
     const out = [];
     for (const s0 of samples) {
-      const s = { ...s0, kasure: 0, tilt: 0, ...(font ? { font } : {}) };
+      const s = { ...s0, kasure: 0, tilt: 0, textSize, ...(font ? { font } : {}) };
       const trace = [];
       await window.__ps.drawStamp(s, px, { trace });
       const frame = alpha(await window.__ps.drawStamp(s, px, { parts: 'frame' }));
@@ -93,7 +93,7 @@ try {
       });
     }
     return out;
-  }, { samples: SAMPLES, px: PX, font: opt('font') });
+  }, { samples: SAMPLES, px: PX, font: opt('font'), textSize: Number(opt('text') || 100) });
 } finally {
   await app.close();
 }
