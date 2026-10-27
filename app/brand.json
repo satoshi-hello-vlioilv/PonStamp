@@ -1,0 +1,13 @@
+{
+  "_about": "アプリの名前（1 か所の定義）。窓の題名・トレイ・ショートカット・配る ZIP・作業場所はすべてここから読む（desktop/src/brand.rs・tools/bundle.py・画面）。name・subtitle・exe は変えてよい（exe を変えたら desktop/Cargo.toml の [[bin]] name と desktop/tauri.conf.json の mainBinaryName、name を変えたら productName も同じにする。brand.rs の試験が食い違いを止める）。app_id は変えない（更新の置き場で「このアプリの版」を見分ける目印・WebView の保存先）。",
+  "name": "PonStamp",
+  "subtitle": "電子印メーカー",
+  "exe": "PonStamp.exe",
+  "app_id": "local.ponstamp.desktop",
+  "data_dir": "PonStamp",
+  "_legacy": "前の形（Flask 版「電子印メーカー（DenshiIn）」）の置き場。legacy_state: 設定と登録した印（%APPDATA%\\<名前>\\state.json）を初めての起動で引き継ぐ。legacy_startup: Windows 起動時の常駐に使っていた .vbs（スタートアップ）。見つけたら外し、exe の常駐に置き換える。",
+  "legacy_state": ["DenshiIn"],
+  "legacy_startup": ["DenshiIn.vbs"],
+  "_update_source": "更新の置き場の既定（配る人が決める。「;」で区切って候補を複数・%環境変数% も使える）。空なら、配る入口から入れた PC はその置き場を、ほかは設定で書いた場所を使う。",
+  "update_source": ""
+}

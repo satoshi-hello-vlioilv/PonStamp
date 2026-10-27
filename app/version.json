@@ -1,0 +1,17 @@
+{
+  "_about": "版と更新履歴（1 か所の定義）。配る物（app/・desktop/）を変えたら version を上げ、changelog の先頭に 1 件足し、python tools/release.py --release で release を書く（手で書かない）。tests/test_version.py が、版を上げずに中身を変えたのを止める。desktop/Cargo.toml と desktop/tauri.conf.json の version もこの版にそろえる。",
+  "version": "1.0.0",
+  "release": {"version": "1.0.0", "digest": "f9a9c4a2deb4c903"},
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-10-27",
+      "notes": [
+        "Flask（Python のサーバー）をやめ、HTML＋Rust のアプリ（PonStamp.exe）にしました。ポートを使わず、ブラウザも開きません",
+        "タスクバーの通知領域に常駐します。右クリックから、登録した印をそのままコピーできます",
+        "保存した PNG に解像度（dpi）を書き込み、貼り付け先で指定の大きさ（mm）になるようにしました",
+        "配布と更新の仕組みを入れました（置き場に版を置いて配る・各 PC は自動で取り込み、開き直すと新しい版になる）"
+      ]
+    }
+  ]
+}

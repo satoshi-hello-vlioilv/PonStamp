@@ -1,5 +1,5 @@
-(() => {
-'use strict';
+import { backend } from './backend.js';
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -276,18 +276,12 @@ const exportPx = s => Math.max(32, Math.round((s.size[s.type] || 12) / 25.4 * s.
 const exportCanvas = () => render(document.createElement('canvas'), S, exportPx(S));
 
 /* ================================================================ 通信 */
-async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-  const r = await fetch(path, opt);
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || j.ok === false) throw new Error(j.error || `HTTP ${r.status}`);
-  return j;
-}
 let saveTimer = 0;
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api('/api/last', S).catch(() => {}), 600);
+  saveTimer = setTimeout(() => backend.saveLast(S).catch(() => {}), 600);
 }
+const pngBytes = cv => new Promise((res, rej) => cv.toBlob(b => (b ? b.arrayBuffer().then(a => res(new Uint8Array(a))) : rej(new Error('画像の生成に失敗しました'))), 'image/png'));
 
 /* ================================================================ UI */
 let toastTimer = 0;
@@ -412,8 +406,9 @@ function fileBase() {
 
 async function copyStamp() {
   try {
-    const blob = await new Promise((res, rej) => exportCanvas().toBlob(b => (b ? res(b) : rej(new Error('画像の生成に失敗しました'))), 'image/png'));
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    const bytes = await pngBytes(exportCanvas());
+    const r = await backend.copyPng(bytes, S.dpi);
+    if (!r || r.native === false) await navigator.clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes], { type: 'image/png' }) })]);
     toast('コピーしました。貼り付け先で Ctrl+V');
   } catch (e) {
     toast(`コピーできませんでした：${e.message}`, true);
@@ -422,7 +417,7 @@ async function copyStamp() {
 
 async function saveStamp() {
   try {
-    const j = await api('/api/save', { data: exportCanvas().toDataURL('image/png'), name: fileBase() });
+    const j = await backend.savePng(await pngBytes(exportCanvas()), fileBase(), S.dpi);
     toast(`保存しました：${j.path}`);
   } catch (e) {
     toast(`保存できませんでした：${e.message}`, true);
@@ -454,7 +449,7 @@ function renderPresets() {
       if (!confirm(`「${p.name}」を削除しますか？`)) return;
       presets.splice(i, 1);
       renderPresets();
-      try { await api('/api/presets', presets); } catch (e) { toast(e.message, true); }
+      try { await backend.savePresets(presets); } catch (e) { toast(e.message, true); }
     });
     chip.append(load, del);
     bar.appendChild(chip);
@@ -478,7 +473,7 @@ $('#dlgPreset').addEventListener('close', async () => {
   const idx = presets.findIndex(p => p.name === name);
   if (idx >= 0) presets[idx] = { name, s }; else presets.push({ name, s });
   renderPresets();
-  try { await api('/api/presets', presets); toast(`「${name}」を登録しました`); }
+  try { await backend.savePresets(presets); toast(`「${name}」を登録しました`); }
   catch (e) { toast(`登録できませんでした：${e.message}`, true); }
 });
 
@@ -519,11 +514,11 @@ function bind() {
   $('#btnResetAdv').addEventListener('click', () => { Object.assign(S, ADV_DEFAULTS); update(); });
   $('#btnCopy').addEventListener('click', copyStamp);
   $('#btnSave').addEventListener('click', saveStamp);
-  $('#btnFolder').addEventListener('click', () => api('/api/open-folder', {}).catch(e => toast(e.message, true)));
+  $('#btnFolder').addEventListener('click', () => backend.openFolder().catch(e => toast(e.message, true)));
   $('#btnAddPreset').addEventListener('click', openPresetDialog);
   $('#btnOutSave').addEventListener('click', async () => {
     try {
-      const j = await api('/api/config', { outputDir: $('#inOut').value });
+      const j = await backend.setSettings({ outputDir: $('#inOut').value });
       $('#inOut').value = j.outputDir;
       toast('保存先を変更しました');
     } catch (e) { toast(e.message, true); }
@@ -552,7 +547,7 @@ function bind() {
 /* ================================================================ 起動 */
 async function init() {
   let st = {};
-  try { st = await api('/api/state'); } catch (e) { toast('設定を読み込めませんでした（初期値で起動）', true); }
+  try { st = await backend.load(); } catch (e) { toast('設定を読み込めませんでした（初期値で起動）', true); }
   S = merge(DEFAULTS, st.last);
   presets = Array.isArray(st.presets) ? st.presets.filter(p => p && p.name && p.s) : [];
   $('#inOut').value = st.outputDir || '';
@@ -562,6 +557,35 @@ async function init() {
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   renderPresets();
   update();
+  bindWindow();
+  backend.ready().catch(() => {});
 }
+
+/* ================================================================ 窓からの知らせ */
+// トレイの「押すとコピー」: 窓が隠れていても、ここで描いて Rust のクリップボードへ置き、右下に知らせを出す
+function bindWindow() {
+  backend.on('ps:copy', async (which) => {
+    const p = which === 'last' ? { name: '前回の印', s: S } : presets[Number(which)];
+    if (!p) return;
+    try {
+      const s = merge(DEFAULTS, { ...p.s, dpi: p.s.dpi || S.dpi });
+      const bytes = await pngBytes(render(document.createElement('canvas'), s, exportPx(s)));
+      await backend.copyPng(bytes, s.dpi);
+      backend.notify?.(`「${p.name}」をコピーしました。貼り付け先で Ctrl+V`);
+    } catch (e) {
+      backend.notify?.(`コピーできませんでした：${e.message}`);
+    }
+  });
+  backend.on('ps:shown', () => { if (S.type === 'date' && S.dateAuto) update(); });
+}
+
+// 自己診断（desktop/src/selftest.js）が使う口: 印を書き出す（画面の描き方そのまま）
+window.__ps = {
+  async exportStamp({ type, dpi }) {
+    const s = merge(DEFAULTS, { ...S, type, dpi });
+    const px = exportPx(s);
+    return { px, mm: s.size[type], bytes: await pngBytes(render(document.createElement('canvas'), s, px)) };
+  },
+};
+
 init();
-})();

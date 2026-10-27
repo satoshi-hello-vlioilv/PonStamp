@@ -1,0 +1,5 @@
+# 作る物・試しの物（配る物にも入れない）
+__pycache__/
+*.pyc
+.ruff_cache/
+/node_modules/

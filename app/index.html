@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{ title }}</title>
-<link rel="icon" href="{{ url_for('static', filename='stamp.ico') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<title>PonStamp — 電子印メーカー</title>
+<link rel="icon" href="stamp.ico">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="logo" aria-hidden="true">印</span>{{ title }}</div>
+  <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー</div>
   <nav class="presets" id="presetBar" aria-label="登録した印"></nav>
   <button type="button" class="btn small" id="btnAddPreset" title="現在の設定を「よく使う印」に登録">＋ 登録</button>
 </header>
@@ -140,6 +140,6 @@
   </form>
 </dialog>
 
-<script src="{{ url_for('static', filename='app.js') }}"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

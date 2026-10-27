@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "画面（主の窓と知らせ）が使ってよい物: 知らせ（event）を受ける・アプリの命令を呼ぶ。ファイル・外のページは Rust の命令だけが触る",
+  "windows": ["main", "toast"],
+  "permissions": ["core:default"]
+}
