@@ -120,7 +120,7 @@ export function createSettings(root, deps) {
   // ---------- 配布（配る人向け）
   function distribution() {
     const box = h('div', { class: 'dist' });
-    const det = h('details', { class: 'set-more', id: 'setDistribution' }, h('summary', {}, '配布（配る人向け）: 版を置く・配る版を選ぶ'), box);
+    const det = h('details', { class: 'set-more', id: 'setDistribution' }, h('summary', {}, '版を置く・配る版を選ぶ（配る人向け）'), box);
     det.addEventListener('toggle', () => { if (det.open && !release) loadRelease(box); });
     if (release) drawRelease(box);
     return sec('dist', '配布', det);
