@@ -3,29 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{ title }}</title>
-<link rel="icon" href="{{ url_for('static', filename='stamp.ico') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<title>PonStamp — 電子印メーカー</title>
+<link rel="icon" href="stamp.ico">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<!-- 形（2026-10 の改良で決めた G2「アプリの殻」）: 左の帯に登録した印・中に入力・右に印とコピー。設定は右上から引き出す。
+     窓の高さにぴったり収め、頁ごとは送らない（入力の列が長いときは列の中だけ送る） -->
 <header class="top">
-  <div class="brand"><span class="logo" aria-hidden="true">印</span>{{ title }}</div>
-  <nav class="presets" id="presetBar" aria-label="登録した印"></nav>
-  <button type="button" class="btn small" id="btnAddPreset" title="現在の設定を「よく使う印」に登録">＋ 登録</button>
+  <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー</div>
+  <button type="button" class="btn small" id="btnSettings" data-open="settings" title="保存先・解像度・常駐・更新・配布">設定</button>
 </header>
-
-<main class="layout">
-  <!-- 左：設定 -->
-  <section class="panel" aria-label="印の設定">
+<div class="shell">
+  <aside class="rail" aria-label="登録した印">
+    <h2 class="rail-h">登録した印</h2>
+    <nav class="presets" id="presetBar" aria-label="登録した印（押すと呼び出す）"></nav>
+    <button type="button" class="btn small" id="btnAddPreset" title="いま作っている印を登録します">＋ いまの印を登録</button>
+    <p class="rail-tip"><b>通知領域からも使えます</b>右下の印のアイコンを右クリックして、登録した印を押すとそのままコピーされます。</p>
+  </aside>
+  <div class="work">
+  <div class="notices" id="notices" hidden></div>
+  <main class="layout">
+<!-- 左：設定 -->
+  <section class="panel" aria-label="印を作る">
     <div class="seg" role="tablist" aria-label="印の種類" id="typeTabs">
       <button type="button" role="tab" data-type="mitome">認印</button>
       <button type="button" role="tab" data-type="date">日付印</button>
       <button type="button" role="tab" data-type="square">角印</button>
     </div>
 
+    <h3 class="grp">印の文字</h3>
     <div class="field" data-for="date">
       <label for="inDept">上段（部署・会社名）</label>
-      <input id="inDept" type="text" data-key="dept" placeholder="例：総務課" autocomplete="off">
+      <input id="inDept" class="big" type="text" data-key="dept" placeholder="例：総務課" autocomplete="off">
     </div>
 
     <div class="field" data-for="mitome date">
@@ -54,9 +64,9 @@
     <div class="field" data-for="square">
       <label for="inSquare">印面の文字</label>
       <input id="inSquare" class="big" type="text" data-key="square" placeholder="例：株式会社見本之印" autocomplete="off">
-      <div class="row mt">
-        <span class="lbl nowrap">列数</span>
-        <select data-key="sqCols" aria-label="列数">
+      <label for="inSqCols" class="mt">列数</label>
+      <div class="row">
+        <select id="inSqCols" data-key="sqCols">
           <option value="auto">自動</option>
           <option value="1">1列</option><option value="2">2列</option>
           <option value="3">3列</option><option value="4">4列</option><option value="5">5列</option>
@@ -64,18 +74,19 @@
       </div>
     </div>
 
+    <h3 class="grp">印の見た目</h3>
     <div class="field">
       <span class="lbl">色</span>
       <div class="swatches" id="swatches"></div>
     </div>
 
     <div class="field">
-      <span class="lbl">大きさ（印影の直径・一辺）</span>
+      <span class="lbl">大きさ（mm・印影の直径／一辺）</span>
       <div class="sizes" id="sizes"></div>
     </div>
 
     <details class="adv">
-      <summary>詳細設定</summary>
+      <summary>詳細設定 <span class="adv-now" id="advNow"></span></summary>
       <div class="adv-body">
         <div class="field">
           <label for="inFont">書体</label>
@@ -89,21 +100,6 @@
           <button type="button" class="btn small" id="btnReseed">かすれ模様を変える</button>
           <button type="button" class="btn small" id="btnResetAdv">詳細を初期値に戻す</button>
         </div>
-        <div class="field">
-          <label for="inDpi">解像度</label>
-          <select id="inDpi" data-key="dpi">
-            <option value="300">300 dpi（軽量）</option>
-            <option value="600">600 dpi（標準）</option>
-            <option value="1200">1200 dpi（高精細）</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="inOut">PNG の保存先フォルダ</label>
-          <div class="row">
-            <input id="inOut" type="text" autocomplete="off">
-            <button type="button" class="btn small" id="btnOutSave">変更</button>
-          </div>
-        </div>
       </div>
     </details>
   </section>
@@ -114,18 +110,24 @@
       <canvas id="pv" width="640" height="640" role="img" aria-label="印影のプレビュー"></canvas>
     </div>
     <div class="meta" id="meta"></div>
-    <div class="bgtoggle" role="group" aria-label="背景">
-      <button type="button" data-bg="checker">透明</button>
-      <button type="button" data-bg="paper">白紙</button>
+    <div class="bgrow">
+      <span class="lbl">プレビューの地</span>
+      <div class="bgtoggle" role="group" aria-label="プレビューの地">
+        <button type="button" data-bg="checker">透明</button>
+        <button type="button" data-bg="paper">白紙</button>
+      </div>
+      <span class="hint">書き出す PNG はいつも透明です</span>
     </div>
     <div class="actions">
       <button type="button" class="btn primary" id="btnCopy">コピー<kbd>Ctrl+Enter</kbd></button>
       <button type="button" class="btn" id="btnSave">PNG保存<kbd>Ctrl+S</kbd></button>
       <button type="button" class="btn" id="btnFolder">保存フォルダ</button>
     </div>
-    <p class="hint center">コピー後、Excel・Word・PowerPoint・PDF編集ソフトなどに貼り付けできます（背景は透明）</p>
+    <p class="hint center">コピーしたら、Excel・Word・PowerPoint・PDF 編集ソフトなどで Ctrl+V で貼り付けます</p>
   </section>
-</main>
+  </main>
+  </div>
+</div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -140,6 +142,16 @@
   </form>
 </dialog>
 
-<script src="{{ url_for('static', filename='app.js') }}"></script>
+<dialog id="dlgSettings" class="settings-dlg" aria-labelledby="dlgSettingsTitle">
+  <div class="dlg-head"><h1 id="dlgSettingsTitle">設定</h1><button type="button" class="btn small quiet" data-close aria-label="閉じる">閉じる</button></div>
+  <div class="settings" id="settings"></div>
+</dialog>
+
+<dialog id="dlgHistory" aria-labelledby="dlgHistoryTitle">
+  <div class="dlg-head"><h1 id="dlgHistoryTitle">更新履歴</h1><button type="button" class="btn small quiet" data-close aria-label="閉じる">閉じる</button></div>
+  <div class="history" id="history"></div>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

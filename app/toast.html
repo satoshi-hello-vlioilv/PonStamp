@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>知らせ</title>
+<style>
+  :root { --bg: #1d2330; --fg: #ffffff; --ok: #2fbf71; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; cursor: default; user-select: none;
+    font: 14px/1.45 "Yu Gothic UI", "Meiryo UI", "Segoe UI", system-ui, sans-serif; }
+  main { display: flex; align-items: center; gap: 12px; height: 100%; padding: 0 16px; box-sizing: border-box; }
+  .mark { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ok); color: #0b2a19; font-weight: 700; }
+  p { margin: 0; }
+</style>
+</head>
+<body>
+<main><span class="mark" aria-hidden="true">✓</span><p id="msg" role="status"></p></main>
+<script>
+  // 窓の右下に出す小さな知らせ（desktop/src/main.rs の toast）。押すと消える
+  document.getElementById('msg').textContent = decodeURIComponent(location.hash.slice(1));
+  addEventListener('click', () => window.close());
+</script>
+</body>
+</html>

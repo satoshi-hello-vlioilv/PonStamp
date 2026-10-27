@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PonStamp",
+  "mainBinaryName": "PonStamp",
+  "version": "1.0.0",
+  "identifier": "local.ponstamp.desktop",
+  "build": { "frontendDist": "../app" },
+  "app": { "windows": [], "withGlobalTauri": true, "security": { "csp": null } },
+  "bundle": { "active": false, "icon": ["../app/stamp.ico", "icons/icon.png"] }
+}

@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-このリポジトリで作業するときの決まり（利用者が決めたこと）。
+このリポジトリで作業するときの決まり（利用者が決めたこと）。決まりそのものはどのリポジトリでも同じ。
+リポジトリごとに違うのは「このリポジトリの形」と「push 前の確かめ」のコマンドだけなので、構成を変えたらそこを直す。
 
 ## 返答・報告・解説は、常に日本語で書く
 
@@ -9,7 +10,18 @@
 - 返答と解説
 - 途中の一言（いま何をしているか）
 - 状況報告（CI の結果、PR の状態、定期確認の結果、マージ、exe の配置）
-- PR の説明
+- PR の説明・コミットの説明
+
+## このリポジトリの形
+
+| 場所 | 中身 | 言葉 |
+|---|---|---|
+| `app/` | 画面（HTML・CSS・JS）。exe に埋め込む。`brand.json`（名前の 1 か所の定義）・`version.json`（版と更新履歴） | JavaScript |
+| `desktop/` | 窓・常駐・保存・クリップボード・配布と更新（Tauri） | Rust |
+| `tools/` | 開発の道具（配る ZIP を作る・版を記録する・画面を撮る・採点する） | Python・Node |
+| `tests/` | 道具の試験 | Python |
+
+仕組みの説明は `README.md`（使う人・配る人）と `docs/DESIGN.md`（作る人）。
 
 ## push の決まり
 
@@ -25,32 +37,31 @@
 
 ```sh
 # 1. 型・構文（JavaScript・Python・Rust）
-bash program/tools/js-check.sh   # import を使う .js はモジュールとして確かめる（node --check だけでは見逃す）
-python -m compileall -q program
+bash tools/js-check.sh            # import を使う .js はモジュールとして確かめる（node --check だけでは見逃す）
+python -m compileall -q tools tests
 (cd desktop && cargo build --locked)
 # 2. lint（Python・Rust）
-ruff check program
-(cd desktop && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+ruff check tools tests
+(cd desktop && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings)
 # 3. テスト（Python・Rust）
-(cd program && python -m unittest discover -s tests -t .)
-python -m unittest discover -s desktop/bundle -t desktop/bundle
+python -m unittest discover -s tests -t .
 (cd desktop && cargo test --locked)
 ```
 
 - 型検査の道具（TypeScript・mypy）は入れていないので、JavaScript・Python は構文の確かめで代えている。入れたら差し替える。Rust はコンパイラが型を確かめる。
-- JavaScript の lint の設定は無い（2 は Python と Rust）。JavaScript のテスト（`npm test`）も、このリポジトリにはまだ無い。
-- CI（`.github/workflows/ci.yml`）も同じ物を流す。ruff と Rust（clippy）は手元と同じ版に留めてある（ruff 0.15.20・Rust 1.97.0。
-  版が上がると決まりが増え、手元で通った物が CI で落ちるため）。上げるときは手元と CI を一緒に上げる。
-- `program` の中身を変えたら、版を上げて `cd program && python app_build.py --release` で `RELEASE` を書き直す（`tests/test_version.py` が止める）。
-- 窓（`desktop/`。Tauri）を Linux で作るには WebKitGTK などが要る（`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev`）。
-- Windows だけのコード（`#[cfg(windows)]`）は Linux の確かめではコンパイルされない。変えたときは `rustup target add x86_64-pc-windows-msvc` のうえで
-  `cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` も通す。窓全体が Linux から Windows 向けに組めないときは、その部分だけを
-  `windows` クレートに頼る小さな作業用クレートへ写し、`cargo check --target x86_64-pc-windows-msvc` で型を確かめる。
-- 起動・更新・配布の流れ（`desktop/src/install.rs`・`update.rs`・`distribute.rs`・`main.rs`）を変えたら、`desktop/bundle/verify.py` の通し
-  （local・update・distribute）を本物の窓で確かめる（Windows は CI。手元の Linux では Windows だけの部分を差し替えて流す）。
-- Windows の本物の WebView2 での自己診断は CI（`.github/workflows/desktop.yml`）が行う。手順の考え方は `program/docs/DESKTOP_MIGRATION_DESIGN.md`。
-- 結果は**終了コードと「Ran … / OK / FAILED」の行で**読む。出力の最後の 1 行だけ（`tail -1` など）で判断しない
-  （Python の試験は最後に ResourceWarning が出ることがあり、FAILED の行が隠れる。版 3.5.0 で、これを見落として CI で初めて失敗に気づいた）。
+- JavaScript の lint の設定は無い（2 は Python と Rust）。画面の動きは `tools/` の評価関数（Node で本物のブラウザを動かす）と Python の試験から確かめる。
+- CI（`.github/workflows/ci.yml`）も同じ物を流す。ruff と Rust（clippy）は手元と同じ版に留める（版が上がると決まりが増え、
+  手元で通った物が CI で落ちるため）。上げるときは手元と CI を一緒に上げる。
+- 配る物（`app/`・`desktop/`）の中身を変えたら、版を上げて記録する: `app/version.json` の `version` を上げ、`changelog` の先頭に 1 件足し、
+  `python tools/release.py --release`（まだ配っていない版を直しただけなら `--amend`）。版を上げ忘れると `tests/test_version.py` が止める。
+- 窓（Tauri）を Linux で作るには WebKitGTK などが要る（`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev libayatana-appindicator3-dev`）。
+- Windows だけのコード（`#[cfg(windows)]`）は Linux の確かめではコンパイルされない。変えたときは `python tools/wincheck.py` を通す
+  （その部分を `windows` クレートだけに頼る小さな作業用クレートへ写し、Windows 向けに clippy を流す。先に `rustup target add x86_64-pc-windows-msvc`。
+  窓全体は Linux から Windows 向けに組めない。Tauri の作る前の準備が Windows の道具を要るため）。本物の確かめは Windows の CI（`desktop.yml`）。
+- 起動・更新・配布の流れ（`desktop/src/` の `update.rs`・`distribute.rs`・`install.rs`・`main.rs`）を変えたら、`tools/verify.py` の通しを
+  本物の窓で確かめる（Windows は CI。手元の Linux は `xvfb-run` の下で）。
+- 結果は**終了コードと「Ran … / OK / FAILED」「test result:」の行で**読む。出力の最後の 1 行だけ（`tail -1` など）で判断しない
+  （Python の試験は最後に ResourceWarning などが出ることがあり、FAILED の行が隠れる。これを見落として CI で初めて失敗に気づいたことがある）。
 - 失敗が残っているときは push しない。直せない理由があるときは、push せずに利用者へ伝える。
 
 ## 改良するときは、別のエージェントが現物を撮って採点し、合格点以上の案に決める
@@ -58,19 +69,28 @@ python -m unittest discover -s desktop/bundle -t desktop/bundle
 UI/UX に限らず、何かを改良するときは、必ず次の順で設計する。案を文章だけで採点しない。案を作った者が自分の案を採点しない。
 利用者に選んでもらうのを待たず、この流れで自律的に 1 案に決めて作る。
 
+道具（`tools/`）:
+
+```sh
+node tools/ui-check.mjs 出力フォルダ [--view 1536x864]                 # 今の画面を状態ごとに撮り、測る（作った後の前後比較にも）
+node tools/ui-variants.mjs 出力フォルダ 案の定義.mjs [--view 1280x720]  # 案ごとの画面と、全案を並べた一覧
+python tools/ui_score.py 採点.json                                       # 合計（加点−減点）・合格点の判定・次にすること
+```
+
+撮る大きさは 3 つ: 1728×1152（利用者の PC: 2160×1440・表示倍率 125%）・1536×864（フル HD・125%）・1280×720（表示の下限: フル HD・150%）。
+
 1. 今の物を撮り（`ui-check.mjs`）、画像を見て、何が使いにくいか・分かりにくいかを、画像で見えたことを根拠に挙げる
-   （画面に出ない改良〈速さ・作り・保存の確かさ など〉は、動かして測った数を根拠にする）
+   （画面に出ない改良〈速さ・作り・保存の確かさ・精度 など〉は、評価関数を作って動かして測った数を根拠にする）
 2. 改良案を**最低 5 案**出す。案の方向（何で解くか: 置き場・見せ方・減らし方・流れの変え方 など）を並べ、偏っていないかを確かめる
 3. **採点に渡す前に、案を作った者が自分で画像を見て確かめる**（利用者が決めた。2026-10-17）。案ごとに `ui-variants.mjs` で撮った画像
    （1728・1536・1280）を自分で開き、案の狙いどおりに見えるか・再現の崩れ（切れ・重なり・折り返し・空白・届かない操作）が無いかを見て、
    崩れていれば案の定義を直して撮り直す。確かめたこと・直したことは採点のファイルの回の `"self_check"` に書く（無ければ `ui_score.py` が判定しない）。
-   作った後（6）も、採点に渡す前に自分で前後の画像を見て確かめる
+   作った後（7）も、採点に渡す前に自分で前後の画像を見て確かめる
 4. 採点は**別のエージェント**（Agent。案を作っていない者）に頼む。採点する者は、自分で案ごとに画面を撮り（`ui-variants.mjs`）、
    画像の現物を直接見て採点する（画面に出ない改良は、自分で動かして測る）。採点の物差しは下の加点と減点。結果は採点のファイル（JSON）に書き、
    `ui_score.py` で合計と判定を出す
 5. 1 位が**合格点以上**なら、1 位に決める（同じ点なら、重い分類の点が高い方）。合格点は**案出しの回によらず一律 80 点**
-   （利用者が決めた。2026-10-17。前の「1 回目 95・2 回目 90・3 回目から 80 点」は、採点のファイルに `"rule"` が無い記録だけに使う）。
-   採点のファイルには `"rule": "2026-10-17"` を書く
+   （利用者が決めた。2026-10-17）。採点のファイルには `"rule": "2026-10-17"` を書く
 6. 合格点に届かないときは決めない。低い項目と減点を見直し、**案出しからやり直す**（5 案以上。前の回で効いた所は持ち越してよいが、
    新しい案を 3 案以上入れる）。採点はまた別のエージェントが、撮り直した画像で付ける。3 回目でも届かなければ、いちばん高い案に決め、
    足りない点とその理由を利用者に伝える
