@@ -8,26 +8,34 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<!-- 形（2026-10 の改良で決めた G2「アプリの殻」）: 左の帯に登録した印・中に入力・右に印とコピー。設定は右上から引き出す。
+     窓の高さにぴったり収め、頁ごとは送らない（入力の列が長いときは列の中だけ送る） -->
 <header class="top">
   <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー</div>
-  <nav class="presets" id="presetBar" aria-label="登録した印"></nav>
-  <button type="button" class="btn small" id="btnAddPreset" title="現在の設定を「よく使う印」に登録">＋ 登録</button>
-  <button type="button" class="btn small" id="btnSettings" data-open="settings" title="保存先・常駐・更新・配布">設定</button>
+  <button type="button" class="btn small" id="btnSettings" data-open="settings" title="保存先・解像度・常駐・更新・配布">設定</button>
 </header>
-<div class="notices" id="notices" hidden></div>
-
-<main class="layout">
-  <!-- 左：設定 -->
-  <section class="panel" aria-label="印の設定">
+<div class="shell">
+  <aside class="rail" aria-label="登録した印">
+    <h2 class="rail-h">登録した印</h2>
+    <nav class="presets" id="presetBar" aria-label="登録した印（押すと呼び出す）"></nav>
+    <button type="button" class="btn small" id="btnAddPreset" title="いま作っている印を登録します">＋ いまの印を登録</button>
+    <p class="rail-tip"><b>通知領域からも使えます</b>右下の印のアイコンを右クリックして、登録した印を押すとそのままコピーされます。</p>
+  </aside>
+  <div class="work">
+  <div class="notices" id="notices" hidden></div>
+  <main class="layout">
+<!-- 左：設定 -->
+  <section class="panel" aria-label="印を作る">
     <div class="seg" role="tablist" aria-label="印の種類" id="typeTabs">
       <button type="button" role="tab" data-type="mitome">認印</button>
       <button type="button" role="tab" data-type="date">日付印</button>
       <button type="button" role="tab" data-type="square">角印</button>
     </div>
 
+    <h3 class="grp">印の文字</h3>
     <div class="field" data-for="date">
       <label for="inDept">上段（部署・会社名）</label>
-      <input id="inDept" type="text" data-key="dept" placeholder="例：総務課" autocomplete="off">
+      <input id="inDept" class="big" type="text" data-key="dept" placeholder="例：総務課" autocomplete="off">
     </div>
 
     <div class="field" data-for="mitome date">
@@ -66,13 +74,14 @@
       </div>
     </div>
 
+    <h3 class="grp">印の見た目</h3>
     <div class="field">
       <span class="lbl">色</span>
       <div class="swatches" id="swatches"></div>
     </div>
 
     <div class="field">
-      <span class="lbl">大きさ（印影の直径・一辺）</span>
+      <span class="lbl">大きさ（mm・印影の直径／一辺）</span>
       <div class="sizes" id="sizes"></div>
     </div>
 
@@ -101,18 +110,24 @@
       <canvas id="pv" width="640" height="640" role="img" aria-label="印影のプレビュー"></canvas>
     </div>
     <div class="meta" id="meta"></div>
-    <div class="bgtoggle" role="group" aria-label="背景">
-      <button type="button" data-bg="checker">透明</button>
-      <button type="button" data-bg="paper">白紙</button>
+    <div class="bgrow">
+      <span class="lbl">プレビューの地</span>
+      <div class="bgtoggle" role="group" aria-label="プレビューの地">
+        <button type="button" data-bg="checker">透明</button>
+        <button type="button" data-bg="paper">白紙</button>
+      </div>
+      <span class="hint">書き出す PNG はいつも透明です</span>
     </div>
     <div class="actions">
       <button type="button" class="btn primary" id="btnCopy">コピー<kbd>Ctrl+Enter</kbd></button>
       <button type="button" class="btn" id="btnSave">PNG保存<kbd>Ctrl+S</kbd></button>
       <button type="button" class="btn" id="btnFolder">保存フォルダ</button>
     </div>
-    <p class="hint center">コピー後、Excel・Word・PowerPoint・PDF編集ソフトなどに貼り付けできます（背景は透明）</p>
+    <p class="hint center">コピーしたら、Excel・Word・PowerPoint・PDF 編集ソフトなどで Ctrl+V で貼り付けます</p>
   </section>
-</main>
+  </main>
+  </div>
+</div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

@@ -59,36 +59,27 @@ function buildSwatches() {
     b.addEventListener('click', () => { S.color = c.v; update(); });
     box.appendChild(b);
   }
-  const pick = document.createElement('input');
-  pick.type = 'color'; pick.id = 'inColor'; pick.title = '任意の色'; pick.setAttribute('aria-label', '任意の色');
+  // 決まった色に無い色: 名前の付いた札（色だけの四角にしない）
+  const pick = h('input', { type: 'color', id: 'inColor', 'aria-label': 'その他の色を選ぶ' });
   pick.addEventListener('input', () => { S.color = pick.value; update(); });
-  box.appendChild(pick);
+  box.appendChild(h('label', { class: 'pick-other', title: '決まった色に無い色を選ぶ' }, pick, 'その他の色'));
 }
 
+// 大きさ: 単位（mm）は見出しに 1 回だけ。決まった大きさに無いときだけ「その他」の箱に値が出る（同じ値を 2 回並べない）
 function buildSizes() {
   const box = $('#sizes');
-  box.innerHTML = '';
   const cur = S.size[S.type];
-  for (const mm of TYPES[S.type].sizes) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.textContent = `${mm}mm`;
-    b.setAttribute('aria-pressed', String(mm === cur));
-    b.addEventListener('click', () => { S.size[S.type] = mm; update(); });
-    box.appendChild(b);
-  }
-  const wrap = document.createElement('label');
-  wrap.className = 'custom';
-  const inp = document.createElement('input');
-  inp.type = 'number'; inp.min = '5'; inp.max = '60'; inp.step = '0.5'; inp.value = String(cur);
-  inp.setAttribute('aria-label', '大きさ（mm）を直接入力');
+  const sizes = TYPES[S.type].sizes;
+  const inp = h('input', { type: 'number', min: 5, max: 60, step: 0.5, placeholder: 'その他', value: sizes.includes(cur) ? '' : cur,
+    'aria-label': '大きさ（mm）を直接入れる', title: '5〜60mm を 0.5mm 刻みで' });
   inp.addEventListener('change', () => {
+    if (inp.value === '') return;
     const v = Number(inp.value);
-    if (!Number.isFinite(v) || v <= 0) { inp.value = String(S.size[S.type]); toast('大きさは 5〜60mm で入力してください', true); return; }
+    if (!Number.isFinite(v) || v < 5 || v > 60) { toast('大きさは 5〜60mm で入れてください', true); return update(); }
     S.size[S.type] = clamp(Math.round(v * 2) / 2, 5, 60);
     update();
   });
-  wrap.append(inp, document.createTextNode('mm'));
-  box.appendChild(wrap);
+  fill(box, sizes.map(mm => h('button', { type: 'button', 'aria-pressed': String(mm === cur), onclick: () => { S.size[S.type] = mm; update(); } }, mm)), inp);
 }
 
 function syncUI() {
@@ -110,7 +101,11 @@ function syncUI() {
     o.textContent = k === 'tilt' ? `${S[k]}°` : String(S[k]);
   });
   $$('#swatches [data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === S.color.toLowerCase())));
-  const pick = $('#inColor'); if (pick) pick.value = S.color;
+  const pick = $('#inColor');
+  if (pick) {
+    pick.value = S.color;
+    pick.parentElement.setAttribute('aria-pressed', String(!COLORS.some(c => c.v.toLowerCase() === S.color.toLowerCase())));
+  }
   $$('[data-bg]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.bg === S.bg)));
   $('#stage').className = `stage ${S.bg}`;
   buildSizes();
@@ -127,6 +122,7 @@ function draw() {
 let raf = 0;
 function update() {
   syncUI();
+  openAdvancedIfRoom();
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(draw);
   scheduleSave();
@@ -171,8 +167,8 @@ function renderPresets() {
     const load = document.createElement('button');
     load.type = 'button'; load.className = 'load'; load.title = `「${p.name}」を呼び出す`;
     const cv = document.createElement('canvas');
-    render(cv, merge(DEFAULTS, p.s), 52);
-    load.append(cv, document.createTextNode(p.name));
+    render(cv, merge(DEFAULTS, p.s), 72);   // 見本は 36px の表示を 2 倍の細かさで（表示倍率 125〜200% でもぼやけない）
+    load.append(cv, h('span', { class: 'nm' }, p.name));
     load.addEventListener('click', () => {
       S = merge(DEFAULTS, { ...p.s, bg: S.bg, dpi: S.dpi });   // 解像度は設定（印ごとではない）
       if (!fonts.some(([f]) => f === S.font) && fonts.length) S.font = fonts[0][0];
@@ -284,14 +280,34 @@ async function init() {
   presets = Array.isArray(st.presets) ? st.presets.filter(p => p && p.name && p.s) : [];
   settings.refresh(st);
   notices.refresh(st);
+  markUpdate(st.update);
   buildFonts();
   buildSwatches();
   bind();
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   renderPresets();
   update();
+  openAdvancedIfRoom();
+  $('details.adv > summary').addEventListener('click', () => { advAuto = false; });   // 利用者が自分で開け閉めした
+  addEventListener('resize', openAdvancedIfRoom);
   bindWindow();
   backend.ready().catch(() => {});
+}
+
+// 背の高い窓では詳細設定を開いておく（入力の列の空きを、使える操作で埋める）。開いて列に収まらなければ閉じる。
+// 種類を変えて入力が長くなったとき・窓の大きさを変えたときも確かめ直す。利用者が自分で開け閉めしたら、その形を守る
+let advAuto = true;
+function openAdvancedIfRoom() {
+  if (!advAuto) return;
+  const adv = $('details.adv'), panel = $('.panel');
+  adv.open = innerHeight >= 860;
+  if (adv.open && panel.scrollHeight > panel.clientHeight + 1) adv.open = false;
+}
+
+/** 新しい版を取り込んでいれば、設定のボタンに札を付ける（知らせの帯を閉じても、どこにあるか分かる） */
+function markUpdate(u) {
+  if (u?.state === 'ready') $('#btnSettings').setAttribute('data-badge', '新しい版');
+  else $('#btnSettings').removeAttribute('data-badge');
 }
 
 /* ================================================================ 設定と知らせ */
@@ -326,7 +342,7 @@ function bindWindow() {
     }
   });
   backend.on('ps:shown', () => { if (S.type === 'date' && S.dateAuto) update(); });
-  backend.on('ps:update', (u) => { settings.setUpdate(u); notices.setUpdate(u); });
+  backend.on('ps:update', (u) => { settings.setUpdate(u); notices.setUpdate(u); markUpdate(u); });
   backend.on('ps:settings', async () => settings.refresh(await backend.load()));
 }
 
