@@ -43,6 +43,7 @@ body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex
 @media (min-width: 1600px) and (min-height: 1000px) {
   :root { --rail: 300px; }
   .rail .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rail .presets:empty::before { grid-column: 1 / -1; }   /* 印が無いときの案内は帯の幅いっぱいに */
   .rail .pchip { position: relative; flex-direction: column; padding: 10px 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
   .rail .pchip .load { flex-direction: column; gap: 6px; width: 100%; text-align: center; }
   .rail .pchip .nm { max-width: 100%; }
@@ -93,19 +94,18 @@ input:disabled { opacity: .5; }
 .pills.small button[aria-pressed="true"] { color: var(--text); }
 /* スライダー（字の大きさ・大きさ・枠・字の太さ・かすれ・傾き）は 1 つの形: 名前 ｜ 帯 ｜ 値 の 1 行。大きさは帯の下によく使う大きさの目盛り。
    列の幅は 1 か所（--cols）。書体と風合いの箱の中は、箱の内側の余白（13px）を引いて、外の帯と左右をそろえる */
-.panel { --cols: 76px 1fr 80px; --pad: 13px; }
+.panel { --cols: 72px 1fr 68px; }
 .field.slider { --thumb: 18px; display: grid; grid-template-columns: var(--cols); grid-template-areas: "l b v" ". t ."; align-items: center; column-gap: 8px; }
-.adv-body { --cols: calc(76px - var(--pad)) 1fr calc(80px - var(--pad)); }
 .field.slider .lblrow { display: contents; }
 .field.slider label { grid-area: l; margin: 0; font-size: 13px; color: var(--text); }
 .field.slider output, .field.slider .val { grid-area: v; justify-self: end; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
 .field.slider input[type=range] { grid-area: b; display: block; width: 100%; margin: 0; accent-color: var(--accent); }
 .field.slider .ticks { grid-area: t; }
-.val input { width: 52px; height: 26px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; text-align: right;
+.val input { width: 44px; height: 26px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; text-align: right;
   -moz-appearance: textfield; }
 .val input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 /* 名前が左の 1 行（色）: スライダーと同じ名前の列 */
-.field.line { display: grid; grid-template-columns: 76px 1fr; align-items: center; column-gap: 8px; }
+.field.line { display: grid; grid-template-columns: 72px 1fr; align-items: center; column-gap: 8px; }
 .field.line > .lbl { margin: 0; font-size: 13px; color: var(--text); }
 .ticks { position: relative; height: 26px; margin: 2px calc(var(--thumb) / 2) 0; }
 .ticks button { position: absolute; left: calc(var(--at) * 100%); transform: translateX(-50%); top: 0; height: 24px; padding: 0 6px; border: 0; border-radius: 5px; background: none;
@@ -113,10 +113,11 @@ input:disabled { opacity: .5; }
 .ticks button::before { content: ""; position: absolute; left: 50%; top: -3px; width: 1px; height: 5px; background: var(--line); }
 .ticks button:hover { background: var(--chip); color: var(--text); }
 .ticks button[aria-pressed="true"] { color: var(--text); font-weight: 700; }
-/* 書体と風合い: 名前の付いた 1 つの箱。閉じていても見出しに今の値（1 行。入らない分は …） */
-.adv { border: 1px solid var(--line); border-radius: 10px; padding: 4px calc(var(--pad) - 1px) 8px; }
-.adv summary { cursor: pointer; color: var(--text); font-size: 13px; font-weight: 700; padding: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.adv-now { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 400; }
+/* 書体と風合い: 名前の付いた 1 つのまとまり（上下の線で区切る。左右の余白を作らず、中の帯を外の帯と同じ列に）。
+   閉じていても、見出しの下の行に今の値を全部出す（切らない） */
+.adv { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 6px 0 8px; }
+.adv summary { cursor: pointer; color: var(--text); font-size: 13px; font-weight: 700; padding: 2px 0; }
+.adv-now { display: block; margin: 2px 0 0 16px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .adv[open] .adv-now { display: none; }
 .adv-body { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
 #dateSeps button { min-width: 30px; padding: 0 9px; }
