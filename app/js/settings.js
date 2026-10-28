@@ -171,7 +171,6 @@ export function createSettings(root, deps) {
     };
     const entry = r.entry?.path;
     fill(box,
-      h('p', { class: 'hint dist-found' }, `置き場: ${r.found}${r.adjusted ? '（この PC での見え方に合わせて探しました）' : ''}`),
       folderTree(r), folderNames(r),
       h('div', { class: 'row dist-place' }, btn(releaseBusy ? '置いています…' : 'ZIP から版を置く…', () => file.click(), 'btn small'), file,
         h('span', { class: 'hint' }, `GitHub の Releases の PonStamp-<版>-windows.zip を選びます。${r.names?.versions || 'versions'} の下に版のフォルダを作ります。置いただけでは配りません。`)),
@@ -202,14 +201,14 @@ export function createSettings(root, deps) {
     return h('figure', { class: 'dist-tree', 'aria-label': '置き場のフォルダの形' },
       h('figcaption', {}, '置き場のフォルダの形（いまのアドレスで）'),
       h('ul', {},
-        item(0, `${r.found}${sep}`, '更新の置き場（「更新」で決める）'),
-        item(1, `${tail(r.appFolder) || n.app || 'PonStamp'}${sep}`, 'アプリのフォルダ（下で名前を決められる）'),
-        item(2, `${entryName}・app.json`, '配る入口。「この版を配る」で、配る版の exe に置き換わる。新しい PC へはこのアドレスを渡す', { missing: !r.entry?.exists }),
-        item(2, 'distribute.json', dist ? `配る版の覚え（いまは ${dist}）` : '配る版の覚え（「この版を配る」で作る）', { missing: !dist }),
-        item(2, `${tail(r.versionsFolder) || n.versions || 'versions'}${sep}`, '版を置くフォルダ（下で名前を決められる）。「ZIP から版を置く」で版ごとのフォルダを作る', { missing: !ins.length }),
+        item(0, `${r.found}${sep}`, r.adjusted ? '更新の置き場（この PC での見え方で探した）' : '更新の置き場（「更新」で決める）'),
+        item(1, `${tail(r.appFolder) || n.app || 'PonStamp'}${sep}`, 'アプリのフォルダ'),
+        item(2, `${entryName}・app.json`, '配る入口（新しい PC へ渡す）', { missing: !r.entry?.exists }),
+        item(2, 'distribute.json', dist ? `配る版の覚え（${dist}）` : '配る版の覚え（配ると作る）', { missing: !dist }),
+        item(2, `${tail(r.versionsFolder) || n.versions || 'versions'}${sep}`, '版を置くフォルダ', { missing: !ins.length }),
         ins.length ? ins.map((v) => item(3, `${v.version}${sep}`, 'release.json・ZIP', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' }))
-          : item(3, `<版>${sep}`, 'まだありません。最初に版を置くと作ります', { missing: true }),
-        old.length ? old.map((v) => item(2, `${v.version}${sep}`, '前の形（1.1 まで）で置いた版。このまま使え、配れます', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' })) : null));
+          : item(3, `<版>${sep}`, 'まだ無い（最初に版を置くと作る）', { missing: true }),
+        old.length ? old.map((v) => item(2, `${v.version}${sep}`, '前の形（1.1 まで）の版', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' })) : null));
   }
 
   /** 置き場に作るフォルダの名前（空なら既定）。保存すると、次に置く・配るときからその名前で作る */
