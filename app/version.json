@@ -1,7 +1,7 @@
 {
   "_about": "版と更新履歴（1 か所の定義）。配る物（app/・desktop/）を変えたら version を上げ、changelog の先頭に 1 件足し、python tools/release.py --release で release を書く（手で書かない）。tests/test_version.py が、版を上げずに中身を変えたのを止める。desktop/Cargo.toml と desktop/tauri.conf.json の version もこの版にそろえる。",
   "version": "1.2.0",
-  "release": {"version": "1.2.0", "digest": "323f9082467b7115"},
+  "release": {"version": "1.2.0", "digest": "c15be2d370742be8"},
   "changelog": [
     {
       "version": "1.2.0",

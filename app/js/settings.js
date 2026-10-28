@@ -149,66 +149,63 @@ export function createSettings(root, deps) {
       if (res) release = await act(() => backend.releaseView());
       drawRelease(box);
     });
-    const versionRow = (v) => {
-      const on = v.version === dist;
-      const choose = btn(on ? '配っています' : (dist && compareVersions(v.version, dist) < 0 ? 'この版に戻す' : 'この版を配る'), async () => {
+    // 版の行の操作（図の版の行に並べる）: 配っている版は札「配布中」だけ。ほかは「この版を配る（戻す）」と「消す」（2 回押す）
+    const versionActs = (v) => {
+      if (v.version === dist) return null;
+      const choose = btn(dist && compareVersions(v.version, dist) < 0 ? 'この版に戻す' : 'この版を配る', async () => {
         const res = await act(() => backend.releaseDistribute(v.version), (x) => (x.notes?.length ? x.notes.join(' ') : `版 ${x.version} を配りました`));
         if (res) { release = await act(() => backend.releaseView()); drawRelease(box); }
-      }, on ? 'btn small' : 'btn small primary');
-      choose.disabled = on || releaseBusy;
+      }, 'btn small');
       let armed = 0;
       const del = btn('消す', async () => {
         if (!armed) { armed = setTimeout(() => { armed = 0; del.textContent = '消す'; }, 4000); del.textContent = 'もう一度押すと消す'; return; }
         clearTimeout(armed);
         const res = await act(() => backend.releaseRemove(v.version), `版 ${v.version} を消しました`);
         if (res) { release = await act(() => backend.releaseView()); drawRelease(box); }
-      }, 'btn small quiet');
-      del.disabled = on || releaseBusy;
-      return h('tr', { class: on ? 'on' : '' },
-        h('td', {}, h('b', {}, v.version), on ? h('span', { class: 'tag' }, '配布中') : null),
-        h('td', {}, when(v.placedAt)), h('td', {}, [v.placedBy, v.placedPc].filter(Boolean).join('・')), h('td', { class: 'num' }, bytes(v.bytes)),
-        h('td', { class: 'acts' }, choose, del));
+      }, 'btn small');
+      choose.disabled = del.disabled = releaseBusy;
+      return h('span', { class: 'acts' }, choose, del);
     };
     const entry = r.entry?.path;
+    // 上から手の順: フォルダの名前 → 版を置く（主の操作）→ 置き場のフォルダの形（版の行で配る・消す）→ 新しい PC へ
     fill(box,
-      folderTree(r), folderNames(r),
-      h('div', { class: 'row dist-place' }, btn(releaseBusy ? '置いています…' : 'ZIP から版を置く…', () => file.click(), 'btn small'), file,
+      folderNames(r),
+      h('div', { class: 'row dist-place' }, btn(releaseBusy ? '置いています…' : 'ZIP から版を置く…', () => file.click(), 'btn small primary'), file,
         h('span', { class: 'hint' }, `GitHub の Releases の PonStamp-<版>-windows.zip を選びます。${r.names?.versions || 'versions'} の下に版のフォルダを作ります。置いただけでは配りません。`)),
-      r.versions.length
-        ? h('table', { class: 'versions' }, h('thead', {}, h('tr', {}, ['版', '置いた日', '置いた人', '大きさ', ''].map((t) => h('th', {}, t)))),
-          h('tbody', {}, r.versions.map(versionRow)))
-        : h('p', { class: 'hint' }, 'まだ版を置いていません。'),
-      entry ? row('新しい PC へ', h('div', { class: 'row dist-entry' }, h('code', {}, entry),
+      folderTree(r, versionActs),
+      entry ? h('div', { class: 'dist-entry' }, h('h3', {}, '新しい PC へ'), h('div', { class: 'row' }, h('code', {}, entry),
         btn('アドレスをコピー', () => act(() => navigator.clipboard.writeText(entry), 'アドレスをコピーしました'))),
         h('p', { class: 'hint' }, 'このアドレスを渡し、ダブルクリックしてもらうだけで、その PC に入ります。')) : null,
       r.problems?.length ? h('p', { class: 'hint warn' }, `読めない物: ${r.problems.join('・')}`) : null);
   }
 
   /**
-   * 置き場のフォルダの形を、いまのアドレスと名前で図にする（どこに何が作られ、版がどう並ぶか）。
-   * まだ無いフォルダ・ファイルは「最初に…すると作ります」と言う
+   * 置き場のフォルダの形を、いまのアドレスと名前で図にする（どこに何が作られ、版がどう並ぶか）。版の行には置いた日・大きさ・人と操作（acts）。
+   * まだ無いフォルダ・ファイルは「まだ無い（…すると作る）」と言う
    */
-  function folderTree(r) {
+  function folderTree(r, acts) {
     const n = r.names || {};
     const sep = String(r.found || '').includes('/') && !String(r.found).includes('\\') ? '/' : '\\';
     const tail = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
     const dist = r.distributed?.version;
     const entryName = r.distributed?.entry || 'PonStamp.exe';
-    const item = (depth, name, what, opts = {}) => h('li', { class: `t${depth}${opts.missing ? ' missing' : ''}${opts.on ? ' on' : ''}` },
-      h('span', { class: 'tn' }, name), h('span', { class: 'tw' }, what), opts.tag ? h('span', { class: 'tag' }, opts.tag) : null);
+    const item = (depth, name, what, opts = {}) => h('li', { class: `t${depth}${opts.missing ? ' missing' : ''}${opts.ver ? ' ver' : ''}${opts.on ? ' on' : ''}` },
+      h('span', { class: 'tn' }, name, opts.on ? h('span', { class: 'tag' }, '配布中') : null), h('span', { class: 'tw' }, what), opts.acts || null);
+    const verItem = (depth, v, note) => item(depth, `${v.version}${sep}`,
+      [note, when(v.placedAt), bytes(v.bytes), [v.placedBy, v.placedPc].filter(Boolean).join('・')].filter(Boolean).join('・'),
+      { ver: true, on: v.version === dist, acts: acts?.(v) });
     const ins = r.versions.filter((v) => v.inVersions !== false);
     const old = r.versions.filter((v) => v.inVersions === false);
     return h('figure', { class: 'dist-tree', 'aria-label': '置き場のフォルダの形' },
-      h('figcaption', {}, '置き場のフォルダの形（いまのアドレスで）'),
+      h('figcaption', {}, '置き場のフォルダの形（いまのアドレスで。版の行で配る・消す）'),
       h('ul', {},
         item(0, `${r.found}${sep}`, r.adjusted ? '更新の置き場（この PC での見え方で探した）' : '更新の置き場（「更新」で決める）'),
         item(1, `${tail(r.appFolder) || n.app || 'PonStamp'}${sep}`, 'アプリのフォルダ'),
         item(2, `${entryName}・app.json`, '配る入口（新しい PC へ渡す）', { missing: !r.entry?.exists }),
         item(2, 'distribute.json', dist ? `配る版の覚え（${dist}）` : '配る版の覚え（配ると作る）', { missing: !dist }),
         item(2, `${tail(r.versionsFolder) || n.versions || 'versions'}${sep}`, '版を置くフォルダ', { missing: !ins.length }),
-        ins.length ? ins.map((v) => item(3, `${v.version}${sep}`, 'release.json・ZIP', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' }))
-          : item(3, `<版>${sep}`, 'まだ無い（最初に版を置くと作る）', { missing: true }),
-        old.length ? old.map((v) => item(2, `${v.version}${sep}`, '前の形（1.1 まで）の版', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' })) : null));
+        ins.length ? ins.map((v) => verItem(3, v)) : item(3, `<版>${sep}`, 'まだ無い（最初に版を置くと作る）', { missing: true }),
+        old.map((v) => verItem(2, v, '前の形（1.1 まで）'))));
   }
 
   /** 置き場に作るフォルダの名前（空なら既定）。保存すると、次に置く・配るときからその名前で作る */
