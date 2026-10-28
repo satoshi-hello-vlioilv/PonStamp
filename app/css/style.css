@@ -216,6 +216,19 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
 .versions tr.on td { background: var(--ok-bg); }
 .versions .num { text-align: right; font-variant-numeric: tabular-nums; }
 .versions .acts { display: flex; gap: 6px; justify-content: flex-end; }
+.dist-tree { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.dist-tree figcaption { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.dist-tree ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.dist-tree li { display: grid; grid-template-columns: minmax(0, max-content) 1fr auto; align-items: baseline; gap: 10px; }
+.dist-tree .tn { font: 12px/1.6 Consolas, "BIZ UDGothic", monospace; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dist-tree .tw { color: var(--muted); }
+.dist-tree .t1 .tn { padding-left: 14px; } .dist-tree .t2 .tn { padding-left: 28px; } .dist-tree .t3 .tn { padding-left: 42px; }
+.dist-tree .t1 .tn::before, .dist-tree .t2 .tn::before, .dist-tree .t3 .tn::before { content: "└ "; color: var(--muted); }
+.dist-tree .missing .tn { color: var(--muted); font-style: italic; }
+.dist-tree li.on .tn { font-weight: 700; }
+.dist-names { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px 10px; align-items: end; }
+.dist-names label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.dist-names .hint { grid-column: 1 / -1; margin: 0; }
 .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--ok); color: var(--panel); font-size: 11px; font-weight: 700; }
 
 .history { padding: 8px 18px 18px; }

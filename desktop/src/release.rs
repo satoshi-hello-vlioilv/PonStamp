@@ -3,13 +3,15 @@
 //! 置き場の形（名前は自由・目印で見分ける）:
 //! ```text
 //! <更新の置き場>\              ← 設定の「更新の置き場」（共有フォルダ・BOX など）
-//!   <アプリのフォルダ>\
+//!   <アプリのフォルダ>\          ← 名前は設定（既定はアプリの名前）
 //!     distribute.json          { schema:1, app_id, version, entry, setAt, setBy, setPc, previous }（配る版）
-//!     <exe>                    配る入口（配る版の exe。新しい PC へはこのアドレスを渡す）
-//!     <版>\release.json        { schema:1, app_id, name, version, zip, sha256, exe }（版のフォルダの目印）
-//!     <版>\<name>-<版>-windows.zip
+//!     <exe>・app.json           配る入口（配る版の exe と名乗り。新しい PC へはこのアドレスを渡す）
+//!     <版を置くフォルダ>\        ← 名前は設定（既定 versions）
+//!       <版>\release.json      { schema:1, app_id, name, version, zip, sha256, exe }（版のフォルダの目印）
+//!       <版>\<name>-<版>-windows.zip
 //! ```
-//! - 置き場の下を 3 段まで（見るフォルダは 600 個まで）たどり、目印の app_id が合うものだけを使う。点で始まるフォルダ（置いている途中・消している途中）は見ない
+//! - 1.1 までは版のフォルダをアプリのフォルダの直下に置いていた。その版も、目印でそのまま見つける（置き直さなくてよい）
+//! - 置き場の下を 4 段まで（見るフォルダは 600 個まで）たどり、目印の app_id が合うものだけを使う。点で始まるフォルダ（置いている途中・消している途中）は見ない
 //! - 書いた場所が無ければ、BOX の見え方の違いを付け直して探す（resolve_source）。候補は「;」か改行で複数・%環境変数% も使える
 
 use serde_json::Value;
@@ -17,7 +19,9 @@ use std::path::{Component, Path, PathBuf};
 
 pub const MARKER: &str = "release.json";
 pub const DISTRIBUTE: &str = "distribute.json";
-const MAX_DEPTH: usize = 3;
+const MAX_DEPTH: usize = 4;
+/// 版を置くフォルダの既定の名前。
+pub const VERSIONS: &str = "versions";
 const MAX_DIRS: usize = 600;
 
 /// 版（X.Y.Z）を数の組に。形が違えば None。
@@ -37,6 +41,11 @@ pub fn newer(a: &str, b: &str) -> bool {
 /// 1 つの名前か（区切り・..・ドライブ名を含まない）。ZIP の名前・exe の名前に使う。
 pub fn safe_name(n: &str) -> bool {
     !n.is_empty() && n != "." && n != ".." && !n.contains(['/', '\\', ':']) && n.trim() == n
+}
+
+/// 置き場に作るフォルダの名前として使えるか（1 つの名前・Windows で使えない字が無い・「.」で始まらない〈各 PC が見ない名前〉）。
+pub fn folder_name_ok(n: &str) -> bool {
+    safe_name(n) && !n.starts_with('.') && !n.contains(['*', '?', '"', '<', '>', '|']) && n.len() <= 64
 }
 
 /// 版のフォルダの目印。
@@ -335,7 +344,7 @@ mod tests {
         put(&d.join("AppNew").join("anything"), rel("me", "3.9.0"));
         put(&d.join("Other").join("1.0.0"), rel("other", "9.9.9"));
         put(&d.join("AppNew").join(".3.10.0.placing-1"), rel("me", "3.10.0"));
-        put(&d.join("a").join("b").join("c").join("d"), rel("me", "4.0.0"));
+        put(&d.join("a").join("b").join("c").join("d").join("e"), rel("me", "4.0.0"));
         std::fs::write(
             d.join("AppOld").join(DISTRIBUTE),
             serde_json::to_vec(&json!({"schema":1,"app_id":"me","version":"3.8.0","setAt":"2026-10-01T00:00:00"})).unwrap(),

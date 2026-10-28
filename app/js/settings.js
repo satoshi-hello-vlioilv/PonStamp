@@ -171,17 +171,59 @@ export function createSettings(root, deps) {
     };
     const entry = r.entry?.path;
     fill(box,
-      h('p', { class: 'hint' }, `置き場: ${r.found}${r.adjusted ? '（この PC での見え方に合わせて探しました）' : ''}`),
-      h('div', { class: 'row' }, btn(releaseBusy ? '置いています…' : 'ZIP から版を置く…', () => file.click(), 'btn small'), file,
-        h('span', { class: 'hint' }, 'GitHub の Releases の PonStamp-<版>-windows.zip を選びます。置いただけでは配りません。')),
+      h('p', { class: 'hint dist-found' }, `置き場: ${r.found}${r.adjusted ? '（この PC での見え方に合わせて探しました）' : ''}`),
+      folderTree(r), folderNames(r),
+      h('div', { class: 'row dist-place' }, btn(releaseBusy ? '置いています…' : 'ZIP から版を置く…', () => file.click(), 'btn small'), file,
+        h('span', { class: 'hint' }, `GitHub の Releases の PonStamp-<版>-windows.zip を選びます。${r.names?.versions || 'versions'} の下に版のフォルダを作ります。置いただけでは配りません。`)),
       r.versions.length
         ? h('table', { class: 'versions' }, h('thead', {}, h('tr', {}, ['版', '置いた日', '置いた人', '大きさ', ''].map((t) => h('th', {}, t)))),
           h('tbody', {}, r.versions.map(versionRow)))
         : h('p', { class: 'hint' }, 'まだ版を置いていません。'),
-      entry ? row('新しい PC へ', h('div', { class: 'row' }, h('code', {}, entry),
+      entry ? row('新しい PC へ', h('div', { class: 'row dist-entry' }, h('code', {}, entry),
         btn('アドレスをコピー', () => act(() => navigator.clipboard.writeText(entry), 'アドレスをコピーしました'))),
         h('p', { class: 'hint' }, 'このアドレスを渡し、ダブルクリックしてもらうだけで、その PC に入ります。')) : null,
       r.problems?.length ? h('p', { class: 'hint warn' }, `読めない物: ${r.problems.join('・')}`) : null);
+  }
+
+  /**
+   * 置き場のフォルダの形を、いまのアドレスと名前で図にする（どこに何が作られ、版がどう並ぶか）。
+   * まだ無いフォルダ・ファイルは「最初に…すると作ります」と言う
+   */
+  function folderTree(r) {
+    const n = r.names || {};
+    const sep = String(r.found || '').includes('/') && !String(r.found).includes('\\') ? '/' : '\\';
+    const tail = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
+    const dist = r.distributed?.version;
+    const entryName = r.distributed?.entry || 'PonStamp.exe';
+    const item = (depth, name, what, opts = {}) => h('li', { class: `t${depth}${opts.missing ? ' missing' : ''}${opts.on ? ' on' : ''}` },
+      h('span', { class: 'tn' }, name), h('span', { class: 'tw' }, what), opts.tag ? h('span', { class: 'tag' }, opts.tag) : null);
+    const ins = r.versions.filter((v) => v.inVersions !== false);
+    const old = r.versions.filter((v) => v.inVersions === false);
+    return h('figure', { class: 'dist-tree', 'aria-label': '置き場のフォルダの形' },
+      h('figcaption', {}, '置き場のフォルダの形（いまのアドレスで）'),
+      h('ul', {},
+        item(0, `${r.found}${sep}`, '更新の置き場（「更新」で決める）'),
+        item(1, `${tail(r.appFolder) || n.app || 'PonStamp'}${sep}`, 'アプリのフォルダ（下で名前を決められる）'),
+        item(2, `${entryName}・app.json`, '配る入口。「この版を配る」で、配る版の exe に置き換わる。新しい PC へはこのアドレスを渡す', { missing: !r.entry?.exists }),
+        item(2, 'distribute.json', dist ? `配る版の覚え（いまは ${dist}）` : '配る版の覚え（「この版を配る」で作る）', { missing: !dist }),
+        item(2, `${tail(r.versionsFolder) || n.versions || 'versions'}${sep}`, '版を置くフォルダ（下で名前を決められる）。「ZIP から版を置く」で版ごとのフォルダを作る', { missing: !ins.length }),
+        ins.length ? ins.map((v) => item(3, `${v.version}${sep}`, 'release.json・ZIP', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' }))
+          : item(3, `<版>${sep}`, 'まだありません。最初に版を置くと作ります', { missing: true }),
+        old.length ? old.map((v) => item(2, `${v.version}${sep}`, '前の形（1.1 まで）で置いた版。このまま使え、配れます', { on: v.version === dist, tag: v.version === dist ? '配布中' : '' })) : null));
+  }
+
+  /** 置き場に作るフォルダの名前（空なら既定）。保存すると、次に置く・配るときからその名前で作る */
+  function folderNames(r) {
+    const n = r.names || {};
+    const app = h('input', { type: 'text', id: 'setReleaseFolder', value: st.releaseFolder || '', placeholder: n.app || 'PonStamp', spellcheck: 'false', 'aria-label': 'アプリのフォルダの名前' });
+    const ver = h('input', { type: 'text', id: 'setVersionsFolder', value: st.versionsFolder || '', placeholder: 'versions', spellcheck: 'false', 'aria-label': '版を置くフォルダの名前' });
+    const save = async () => {
+      const res = await act(() => backend.setSettings({ releaseFolder: app.value, versionsFolder: ver.value }), 'フォルダの名前を変えました。次に置く・配るときから、この名前で作ります');
+      if (res) { st.releaseFolder = res.releaseFolder; st.versionsFolder = res.versionsFolder; release = await act(() => backend.releaseView()); render(); }
+    };
+    return h('div', { class: 'dist-names' },
+      h('label', {}, 'アプリのフォルダ', app), h('label', {}, '版を置くフォルダ', ver), btn('保存', save),
+      h('p', { class: 'hint' }, '空なら既定（アプリの名前・versions）。名前を変えても、前に置いた版はそのまま見つけて使えます。'));
   }
 
   // ---------- このアプリについて

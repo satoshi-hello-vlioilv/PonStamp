@@ -197,20 +197,21 @@ pub fn shortcut_decline(ctx: Ctxs) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn release_view(ctx: Ctxs<'_>) -> Result<Value, String> {
-    let (upd, source) = (ctx.updater.clone(), ctx.update_source());
-    blocking(move || Ok(upd.release_view(&source))).await
+    let (upd, source, layout) = (ctx.updater.clone(), ctx.update_source(), ctx.layout());
+    blocking(move || Ok(upd.release_view(&source, &layout))).await
 }
 
 #[tauri::command]
 pub async fn release_place(req: Request<'_>, ctx: Ctxs<'_>) -> Result<Value, String> {
-    let (upd, source, name, bytes) = (ctx.updater.clone(), ctx.update_source(), header(&req, "x-name"), body(&req)?.to_vec());
-    blocking(move || upd.place(&source, &name, &bytes)).await
+    let (upd, source, layout, name, bytes) =
+        (ctx.updater.clone(), ctx.update_source(), ctx.layout(), header(&req, "x-name"), body(&req)?.to_vec());
+    blocking(move || upd.place(&source, &layout, &name, &bytes)).await
 }
 
 #[tauri::command]
 pub async fn release_distribute(ctx: Ctxs<'_>, version: String) -> Result<Value, String> {
-    let (upd, source) = (ctx.updater.clone(), ctx.update_source());
-    blocking(move || upd.distribute(&source, &version)).await
+    let (upd, source, layout) = (ctx.updater.clone(), ctx.update_source(), ctx.layout());
+    blocking(move || upd.distribute(&source, &layout, &version)).await
 }
 
 #[tauri::command]

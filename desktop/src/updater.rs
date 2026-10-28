@@ -7,7 +7,7 @@
 //! - 状態が変わるたびに知らせる（画面の札とトレイのメニューが変わる）
 
 use ps_core::brand::brand;
-use ps_core::distribute::{self, Who};
+use ps_core::distribute::{self, Layout, Who};
 use ps_core::paths::Paths;
 use ps_core::release;
 use ps_core::update;
@@ -179,12 +179,12 @@ impl Updater {
     }
 
     /// 配布の画面（置き場をたどる）。
-    pub fn release_view(&self, source: &str) -> Value {
+    pub fn release_view(&self, source: &str, layout: &Layout) -> Value {
         let b = brand();
         let who = Who::here();
         let me = json!({"login": who.login, "pc": who.pc, "current": self.current});
         let mut v = match release::locate_source(source) {
-            Ok((found, adjusted)) => distribute::view_of(&release::scan(&found, &b.app_id), &found, adjusted, source, &b.name),
+            Ok((found, adjusted)) => distribute::view_of(&release::scan(&found, &b.app_id), &found, adjusted, source, layout),
             Err(e) => json!({"reachable": false, "why": e, "folder": source, "found": null, "versions": []}),
         };
         v["me"] = me;
@@ -192,22 +192,22 @@ impl Updater {
     }
 
     /// 画面から選んだ ZIP（読み終えたバイト列）を置き場に置く。
-    pub fn place(&self, source: &str, file_name: &str, body: &[u8]) -> Result<Value, String> {
+    pub fn place(&self, source: &str, layout: &Layout, file_name: &str, body: &[u8]) -> Result<Value, String> {
         let b = brand();
         let (found, _) = release::locate_source(source)?;
         std::fs::create_dir_all(self.paths.work()).map_err(|e| e.to_string())?;
         let dl = self.paths.work().join(format!("place-{}.zip", std::process::id()));
         std::fs::write(&dl, body).map_err(|e| format!("受け取った ZIP を書けません: {e}"))?;
-        let r = distribute::place(&self.paths, &found, &dl, file_name, &b.app_id, &Who::here(), &|_, _, _| {});
+        let r = distribute::place(&self.paths, &found, layout, &dl, file_name, &b.app_id, &Who::here(), &|_, _, _| {});
         let _ = std::fs::remove_file(&dl);
         self.wake();
         r
     }
 
     /// 配る版を決める（前の版へ戻すのも同じ）。
-    pub fn distribute(&self, source: &str, version: &str) -> Result<Value, String> {
+    pub fn distribute(&self, source: &str, layout: &Layout, version: &str) -> Result<Value, String> {
         let (found, _) = release::locate_source(source)?;
-        let r = distribute::set_distributed(&found, version, &brand().app_id, &Who::here())?;
+        let r = distribute::set_distributed(&found, layout, version, &brand().app_id, &Who::here())?;
         self.wake();
         Ok(r)
     }

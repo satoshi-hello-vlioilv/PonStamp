@@ -14,7 +14,7 @@ use std::sync::Mutex;
 /// 登録できる印の数の上限（トレイのメニューに並ぶので、多すぎないように）。
 pub const MAX_PRESETS: usize = 50;
 /// 画面が書いてよい設定のキー（ほかは断る。画面の不具合で state.json を壊さない）。
-pub const SETTINGS: &[&str] = &["outputDir", "updateSource"];
+pub const SETTINGS: &[&str] = &["outputDir", "updateSource", "releaseFolder", "versionsFolder"];
 
 pub struct Store {
     path: PathBuf,
@@ -98,6 +98,12 @@ impl Store {
                 }
                 std::fs::create_dir_all(&s).map_err(|e| format!("保存先のフォルダを作れません（{s}）: {e}"))?;
             }
+            // 置き場に作るフォルダの名前（空なら既定）: 1 つの名前だけ（区切り・Windows で使えない字・「.」で始まる名前は断る）
+            if (k == "releaseFolder" || k == "versionsFolder") && !s.is_empty() && !crate::release::folder_name_ok(&s) {
+                return Err(format!(
+                    "フォルダの名前に使えません: {s}（\\ / : * ? \" < > | を含まない、「.」で始まらない 1 つの名前にしてください）"
+                ));
+            }
             clean.insert(k.clone(), json!(s));
         }
         self.update(|o| {
@@ -159,6 +165,16 @@ mod tests {
         m.clear();
         m.insert("presets".into(), json!([]));
         assert!(s.set_settings(&m).unwrap_err().contains("変えられない"), "設定以外は画面から書かせない");
+        for bad in ["a\\b", "../x", ".hidden", "x:y", "a*b"] {
+            m.clear();
+            m.insert("versionsFolder".into(), json!(bad));
+            assert!(s.set_settings(&m).unwrap_err().contains("使えません"), "フォルダの名前に使えない: {bad}");
+        }
+        m.clear();
+        m.insert("releaseFolder".into(), json!("電子印"));
+        m.insert("versionsFolder".into(), json!(""));
+        let st = s.set_settings(&m).unwrap();
+        assert_eq!((st["releaseFolder"].as_str(), st["versionsFolder"].as_str()), (Some("電子印"), Some("")), "空は既定に戻す");
         let _ = std::fs::remove_dir_all(&d);
     }
 
