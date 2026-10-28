@@ -18,6 +18,7 @@ mod commands;
 mod lnk;
 mod locate;
 mod proc;
+mod shellmenu;
 mod tray;
 mod updater;
 
@@ -58,6 +59,8 @@ pub struct Ctx {
     /// 起動のときの知らせ（写せなかった・取り込めなかった等）。画面が出す
     pub notes: Mutex<Vec<String>>,
     pub selftest: Option<PathBuf>,
+    /// 右クリックのメニューから起こされたとき、画面が出たらコピーする印（--copy <番号 | last>）
+    pub pending_copy: Mutex<Option<String>>,
 }
 
 impl Ctx {
@@ -82,6 +85,20 @@ impl Ctx {
         let reg = autostart::registered(&brand().name);
         let on = reg.as_deref().is_some_and(|c| autostart::points_to(c, &self.entry_exe()));
         json!({"on": on, "can": self.installed || self.dev, "registered": reg})
+    }
+
+    /// 右クリックのメニューを今の登録した印で書き直す（この PC のアプリ・開発のときだけ。自己診断では触らない）。
+    pub fn sync_shell_menu(&self) {
+        if !(self.installed || self.dev) || self.selftest.is_some() {
+            return;
+        }
+        let st = self.store.load();
+        let names: Vec<String> =
+            st["presets"].as_array().map(|a| a.iter().filter_map(|p| p["name"].as_str().map(str::to_string)).collect()).unwrap_or_default();
+        let rows = shellmenu::entries(&self.entry_exe(), st["last"].is_object(), &names, tray::PRESETS_IN_MENU);
+        if let Err(e) = shellmenu::sync(&brand().name, shortcut_icon(&self.paths), &rows) {
+            log(&format!("MENU {e}"));
+        }
     }
 
     pub fn names(&self) -> install::Names<'static> {
@@ -119,13 +136,20 @@ fn dev_mode(me: &Path) -> bool {
             .any(|d| d.file_name().is_some_and(|n| n == "target") && d.parent().is_some_and(|p| p.join("Cargo.toml").is_file()))
 }
 
-/// 次の窓へ渡す引数（常駐で起こされたら、次も窓を出さない）。
+/// 次の窓へ渡す引数（常駐で起こされたら、次も窓を出さない。右クリックのメニューから起こされたら、何をコピーするかも渡す）。
 fn pass_args() -> Vec<String> {
+    let mut out = vec![];
     if has_arg(autostart::TRAY_ARG) {
-        vec![autostart::TRAY_ARG.to_string()]
-    } else {
-        vec![]
+        out.push(autostart::TRAY_ARG.to_string());
     }
+    if let Some(which) = copy_arg() {
+        out.extend([shellmenu::COPY_ARG.to_string(), which]);
+    }
+    out
+}
+
+fn copy_arg() -> Option<String> {
+    shellmenu::copy_target(&std::env::args().collect::<Vec<_>>())
 }
 
 /// exe を、この exe が終わるのを待つ印つきで起こす。
@@ -464,16 +488,20 @@ fn main() {
         me,
         installed,
         dev,
-        tray_only: has_arg(autostart::TRAY_ARG) && selftest.is_none(),
+        tray_only: (has_arg(autostart::TRAY_ARG) || copy_arg().is_some()) && selftest.is_none(),
         version: current,
         notes: Mutex::new(notes),
         selftest,
+        pending_copy: Mutex::new(copy_arg()),
     });
 
     let app = tauri::Builder::default()
-        // 2 つめを起こしたら、前の窓を前に出すだけ（常駐で起こされた 2 つめは何もしない）
+        // 2 つめを起こしたら、前の窓を前に出すだけ（常駐で起こされた 2 つめは何もしない。
+        // 右クリックのメニューから起こされた 2 つめは、前の窓にコピーを頼む。窓は出さない）
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            if !args.iter().any(|a| a == autostart::TRAY_ARG) {
+            if let Some(which) = shellmenu::copy_target(&args) {
+                let _ = app.emit_to("main", "ps:copy", which);
+            } else if !args.iter().any(|a| a == autostart::TRAY_ARG) {
                 show_main(app);
             }
         }))
@@ -520,6 +548,7 @@ fn main() {
             let handle = app.handle().clone();
             tray::create(&handle)?;
             let ctx = handle.state::<Arc<Ctx>>().inner().clone();
+            ctx.sync_shell_menu();
             // 更新の状態が変わったら、画面へ知らせ、トレイのメニューを作り直す
             let h = handle.clone();
             ctx.updater.listen(move |st| {
@@ -543,11 +572,19 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("起動できません");
-    app.run(|_app, e| {
+    app.run(|app, e| match e {
         // 窓をすべて閉じても終わらない（常駐）。終わるのはトレイ・画面の「終了」（app.exit）だけ
-        if let tauri::RunEvent::ExitRequested { api, code: None, .. } = e {
-            api.prevent_exit();
+        tauri::RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
+        // 終わるとき: 右クリックのメニューを外す（常駐している間だけ出す）
+        tauri::RunEvent::Exit => {
+            let ctx = app.state::<Arc<Ctx>>();
+            if (ctx.installed || ctx.dev) && ctx.selftest.is_none() {
+                if let Err(e) = shellmenu::remove(&brand().name) {
+                    log(&format!("MENU {e}"));
+                }
+            }
         }
+        _ => {}
     });
 }
 

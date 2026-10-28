@@ -9,7 +9,7 @@ use ps_core::{files, install, pngx};
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 type Ctxs<'a> = State<'a, Arc<Ctx>>;
 
@@ -84,6 +84,7 @@ pub fn save_last(ctx: Ctxs, value: Value) -> Result<(), String> {
 pub fn save_presets(app: AppHandle, ctx: Ctxs, value: Value) -> Result<(), String> {
     ctx.store.set_presets(value)?;
     crate::tray::refresh(&app);
+    ctx.sync_shell_menu();
     Ok(())
 }
 
@@ -223,6 +224,10 @@ pub async fn release_remove(ctx: Ctxs<'_>, version: String) -> Result<Value, Str
 pub fn page_ready(app: AppHandle, ctx: Ctxs) {
     if ctx.installed {
         ps_core::update::confirm(&ctx.paths);
+    }
+    // 右クリックのメニューから起こされた: 画面ができたので、頼まれた印をコピーする
+    if let Some(which) = ctx.pending_copy.lock().unwrap().take() {
+        let _ = app.emit_to("main", "ps:copy", which);
     }
     if ctx.selftest.is_some() {
         if let Some(w) = app.get_webview_window("main") {
