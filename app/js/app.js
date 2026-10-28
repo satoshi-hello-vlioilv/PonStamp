@@ -194,7 +194,7 @@ function renderPresets() {
     const load = document.createElement('button');
     load.type = 'button'; load.className = 'load'; load.title = `「${p.name}」を呼び出す`;
     const cv = document.createElement('canvas');
-    render(cv, merge(DEFAULTS, p.s), 72);   // 見本は 36px の表示を 2 倍の細かさで（表示倍率 125〜200% でもぼやけない）
+    render(cv, merge(DEFAULTS, p.s), 144);   // 見本は 36〜72px の表示を 2 倍の細かさで（広い画面の大きな見本・表示倍率 125〜200% でもぼやけない）
     load.append(cv, h('span', { class: 'nm' }, p.name));
     load.addEventListener('click', () => {
       S = merge(DEFAULTS, { ...p.s, bg: S.bg, dpi: S.dpi });   // 解像度は設定（印ごとではない）
