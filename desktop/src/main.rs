@@ -77,6 +77,12 @@ impl Ctx {
         PathBuf::from(self.store.load()["outputDir"].as_str().unwrap_or(""))
     }
 
+    /// 置き場に作るフォルダの名前（設定の「アプリのフォルダ」「版を置くフォルダ」。空なら既定）。
+    pub fn layout(&self) -> distribute::Layout {
+        let st = self.store.load();
+        distribute::Layout::new(st["releaseFolder"].as_str().unwrap_or(""), st["versionsFolder"].as_str().unwrap_or(""), &brand().name)
+    }
+
     pub fn update_source(&self) -> String {
         updater::source_of(&self.paths, self.store.load()["updateSource"].as_str().unwrap_or(""))
     }

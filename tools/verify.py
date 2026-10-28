@@ -47,11 +47,11 @@ def tree_digest(root: Path) -> str:
 
 
 def place(exe: Path, version: str, rel_root: Path, broken: bool = False) -> None:
-    """版を ZIP にし、置き場の <アプリ>/<版>/ に release.json と並べて置く（broken: 起動できない版の真似）。"""
+    """版を ZIP にし、置き場の <アプリ>/versions/<版>/ に release.json と並べて置く（画面の「版を置く」と同じ形。broken: 起動できない版の真似）。"""
     name = bundle.brand()["name"]
     with tempfile.TemporaryDirectory(prefix="ps-place-") as tmp:
         bundle.build(exe, Path(tmp), version, {"selftest_broken": True} if broken else None)
-        dest = rel_root / name / version
+        dest = rel_root / name / "versions" / version
         dest.mkdir(parents=True, exist_ok=True)
         for f in Path(tmp).iterdir():
             if f.is_file() and not f.name.endswith(".sha256"):

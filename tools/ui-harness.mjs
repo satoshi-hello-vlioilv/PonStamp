@@ -36,10 +36,12 @@ const DEMO = {
   updateSourceUsed: '\\\\fs01\\共有\\Releases',
   release: {
     reachable: true, found: '\\\\fs01\\共有\\Releases', adjusted: false,
+    appFolder: '\\\\fs01\\共有\\Releases\\PonStamp', versionsFolder: '\\\\fs01\\共有\\Releases\\PonStamp\\versions',
+    names: { app: 'PonStamp', versions: 'versions', appSet: false },
     distributed: { version: '1.0.0', entry: 'PonStamp.exe' },
     versions: [
-      { version: '1.0.1', placedAt: '2026-10-27T10:12:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9437184 },
-      { version: '1.0.0', placedAt: '2026-10-20T16:40:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9332736 },
+      { version: '1.0.1', placedAt: '2026-10-27T10:12:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9437184, inVersions: true },
+      { version: '1.0.0', placedAt: '2026-10-20T16:40:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9332736, inVersions: true },
     ],
     entry: { exists: true, path: '\\\\fs01\\共有\\Releases\\PonStamp\\PonStamp.exe' },
     problems: [],
@@ -71,6 +73,7 @@ export const STATES = [
   { name: 'advanced', seed: SEED, run: async (page) => openAdvanced(page) },
   { name: 'update', seed: UPDATE, run: async () => {} },
   { name: 'settings', seed: UPDATE, run: async (page) => openSettings(page) },
+  { name: 'distribution', seed: SEED, run: async (page) => openDistribution(page) },
 ];
 export const STATE_NAMES = STATES.map((s) => s.name);
 
@@ -83,6 +86,19 @@ async function openAdvanced(page) {
   const tab = page.locator('[data-open="advanced"]').first();
   if (await tab.count()) await tab.click();
   else await page.evaluate(() => { const d = document.querySelector('details.adv'); if (d) d.open = true; });
+}
+
+/** 設定を開き、配布（配る人向け）を開いて、そこまで引き出しの中を送る（置き場のフォルダの形・版の一覧を見る） */
+async function openDistribution(page) {
+  await openSettings(page);
+  await page.evaluate(() => {
+    const sec = document.querySelector('#setDistribution')?.closest('section');
+    if (!sec) return;
+    sec.scrollIntoView({ block: 'start' });
+    // 引き出しの見出し（上に貼り付く）に隠れないよう、送る箱を少し戻す
+    for (let el = sec.parentElement; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight + 1) { el.scrollTop -= 72; break; }
+  });
+  await page.waitForTimeout(150);
 }
 
 async function openSettings(page) {

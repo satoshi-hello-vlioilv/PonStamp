@@ -2,18 +2,19 @@
 //!
 //! 置き場（release.rs と同じ形）:
 //! ```text
-//! <更新の置き場>\<アプリのフォルダ>\
+//! <更新の置き場>\<アプリのフォルダ>\        （名前は Layout。既定はアプリの名前）
 //!   distribute.json          { schema:1, app_id, version, entry, setAt, setBy, setPc, previous }
-//!   <exe>                    配る入口（配る版の ZIP の exe と名乗り。新しい PC へはこのアドレスだけを渡す）
-//!   <版>\release.json        { schema:1, app_id, name, version, zip, sha256, exe, placedAt, placedBy, placedPc, source, bytes }
-//!   <版>\<name>-<版>-windows.zip
+//!   <exe>・app.json           配る入口（配る版の ZIP の exe と名乗り。新しい PC へはこのアドレスだけを渡す）
+//!   <版を置くフォルダ>\       （名前は Layout。既定 versions）
+//!     <版>\release.json      { schema:1, app_id, name, version, zip, sha256, exe, placedAt, placedBy, placedPc, source, bytes }
+//!     <版>\<name>-<版>-windows.zip
 //! ```
 //! 置くときは `.<版>.placing-<pid>` へ写して指紋を確かめ直し、release.json を書いてから名前を変える（各 PC が置きかけを読まない）。
 //! 消すときは逆に、先に `.<版>.removing-<pid>` へ名前を変えてから中身を消す（各 PC が消しかけを読まない）。
 //! だれが置いてよいかは、置き場のフォルダに書ける人（共有・BOX の権限）で決まる。
 
 use crate::paths::{now_text, read_json, write_json, Paths};
-use crate::release::{self, Release, Scan, DISTRIBUTE, MARKER};
+use crate::release::{self, Release, Scan, DISTRIBUTE, MARKER, VERSIONS};
 use crate::update::{self, dist_root, extract_zip, manifest, sha256_file, validate_dist, MANIFEST};
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -37,17 +38,53 @@ impl Who {
 /// 進み具合を伝える（段・済んだバイト・全部のバイト）。
 pub type Progress<'a> = &'a dyn Fn(&str, u64, u64);
 
-/// アプリのフォルダ（配る版の覚えがあればそこ、無ければいちばん新しい版の隣、どちらも無ければ 置き場\<アプリ名>）。
-pub fn app_folder(found: &Path, scan: &Scan, name: &str) -> PathBuf {
+/// 置き場に作るフォルダの名前（設定。空なら既定）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct Layout {
+    /// アプリのフォルダ（既定はアプリの名前）
+    pub app: String,
+    /// 版を置くフォルダ（既定 versions）
+    pub versions: String,
+    /// アプリのフォルダの名前を設定で決めたか（決めていなければ、今あるフォルダを使い続ける）
+    pub app_set: bool,
+}
+
+impl Layout {
+    pub fn new(app: &str, versions: &str, default_app: &str) -> Layout {
+        let (app, versions) = (app.trim(), versions.trim());
+        Layout {
+            app: if app.is_empty() { default_app } else { app }.to_string(),
+            versions: if versions.is_empty() { VERSIONS } else { versions }.to_string(),
+            app_set: !app.is_empty(),
+        }
+    }
+}
+
+/// 版のフォルダから、アプリのフォルダ（版を置くフォルダの上。前の形〈直下に置いた版〉なら 1 つ上）。
+fn app_dir_of(release_dir: &Path, layout: &Layout) -> Option<PathBuf> {
+    let parent = release_dir.parent()?;
+    let named = parent.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(&layout.versions));
+    Some(if named { parent.parent()? } else { parent }.to_path_buf())
+}
+
+/// アプリのフォルダ:
+/// - 更新の置き場そのものがアプリのフォルダ（配る版の覚えがある・名前がアプリのフォルダの名前）なら、そこ
+/// - 名前を設定で決めていれば 置き場\<その名前>
+/// - 決めていなければ、配る版の覚えのあるフォルダ → いちばん新しい版のアプリのフォルダ → 置き場\<アプリの名前>（今ある形を使い続ける）
+pub fn app_folder(found: &Path, scan: &Scan, layout: &Layout) -> PathBuf {
+    let is_app =
+        found.join(DISTRIBUTE).is_file() || found.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(&layout.app));
+    if is_app {
+        return found.to_path_buf();
+    }
+    let named = found.join(&layout.app);
+    if layout.app_set {
+        return named;
+    }
     if let Some(d) = &scan.distribute {
         return d.dir.clone();
     }
-    if let Some(r) = scan.newest() {
-        if let Some(parent) = r.dir.parent() {
-            return parent.to_path_buf();
-        }
-    }
-    found.join(name)
+    scan.newest().and_then(|r| app_dir_of(&r.dir, layout)).unwrap_or(named)
 }
 
 /// 写しながら進み具合を伝える。
@@ -70,7 +107,17 @@ fn copy_with_progress(from: &Path, to: &Path, progress: Progress) -> Result<u64,
 }
 
 /// 画面から選んだ ZIP を置き場に置く。→ 置いた版の release.json
-pub fn place(p: &Paths, found: &Path, zip: &Path, source_name: &str, app_id: &str, who: &Who, progress: Progress) -> Result<Value, String> {
+#[allow(clippy::too_many_arguments)] // どこへ（置き場・名前）・何を（ZIP・元の名前・目印）・だれが・進み具合。まとめると呼ぶ側が読みにくくなる
+pub fn place(
+    p: &Paths,
+    found: &Path,
+    layout: &Layout,
+    zip: &Path,
+    source_name: &str,
+    app_id: &str,
+    who: &Who,
+    progress: Progress,
+) -> Result<Value, String> {
     progress("check", 0, 0);
     let work = p.work();
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
@@ -97,8 +144,8 @@ pub fn place(p: &Paths, found: &Path, zip: &Path, source_name: &str, app_id: &st
     if scan.find(&version).is_some() {
         return Err(format!("版 {version} はもう置いてあります（同じ版は置けません。取り込んだ PC と中身が食い違うため）"));
     }
-    let folder = app_folder(found, &scan, &name);
-    let (dest, placing) = (folder.join(&version), folder.join(format!(".{version}.placing-{}", std::process::id())));
+    let versions = app_folder(found, &scan, layout).join(&layout.versions);
+    let (dest, placing) = (versions.join(&version), versions.join(format!(".{version}.placing-{}", std::process::id())));
     if dest.exists() {
         return Err(format!("{} がもうあります", dest.display()));
     }
@@ -142,13 +189,14 @@ fn extract_file(zip: &Path, file: &str, to: &Path) -> Result<(), String> {
 }
 
 /// 配る版を決める: distribute.json を書き、配る入口（その版の exe と名乗り）をアプリのフォルダの直下に置く。→ {version, notes, entry}
-pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who) -> Result<Value, String> {
+pub fn set_distributed(found: &Path, layout: &Layout, version: &str, app_id: &str, who: &Who) -> Result<Value, String> {
     let scan = release::scan(found, app_id);
     let rel: &Release = scan.find(version).ok_or_else(|| format!("版 {version} は置き場にありません"))?;
     if sha256_file(&rel.zip_path()).map_err(|e| format!("版 {version} の ZIP を読めません: {e}"))? != rel.sha256 {
         return Err(format!("版 {version} の ZIP の指紋が release.json と違います（置いている途中か、壊れています）"));
     }
-    let folder = app_folder(found, &scan, &rel.name);
+    let folder = app_folder(found, &scan, layout);
+    std::fs::create_dir_all(&folder).map_err(|e| format!("アプリのフォルダを作れません（{}）: {e}", folder.display()))?;
     let mut notes = vec![];
     let entry = folder.join(&rel.exe);
     // 配る入口: 指紋を確かめた ZIP からだけ取り出す。exe を開いている人がいると置き換えられないので、そのときは言う
@@ -202,20 +250,22 @@ pub fn remove_version(found: &Path, version: &str, app_id: &str) -> Result<Value
 }
 
 /// たどり終えた置き場（scan）から、配布の画面の答えを作る。
-pub fn view_of(scan: &Scan, found: &Path, adjusted: bool, source: &str, name: &str) -> Value {
-    let folder = app_folder(found, scan, name);
+pub fn view_of(scan: &Scan, found: &Path, adjusted: bool, source: &str, layout: &Layout) -> Value {
+    let folder = app_folder(found, scan, layout);
+    let versions_dir = folder.join(&layout.versions);
     let versions: Vec<Value> = scan
         .by_version()
         .iter()
         .map(|r| {
             let bytes = r.raw["bytes"].as_u64().or_else(|| std::fs::metadata(r.zip_path()).ok().map(|m| m.len())).unwrap_or(0);
             json!({"version": r.version, "placedAt": r.raw["placedAt"], "placedPc": r.raw["placedPc"], "placedBy": r.raw["placedBy"],
-                   "source": r.raw["source"], "zip": r.zip, "bytes": bytes, "dir": r.dir})
+                   "source": r.raw["source"], "zip": r.zip, "bytes": bytes, "dir": r.dir, "inVersions": r.dir.parent() == Some(versions_dir.as_path())})
         })
         .collect();
     let entry = scan.distribute.as_ref().and_then(|d| d.raw["entry"].as_str().map(|e| d.dir.join(e)));
     json!({
-        "reachable": true, "found": found, "adjusted": adjusted, "folder": source, "appFolder": folder,
+        "reachable": true, "found": found, "adjusted": adjusted, "folder": source, "appFolder": folder, "versionsFolder": versions_dir,
+        "names": {"app": layout.app, "versions": layout.versions, "appSet": layout.app_set},
         "distributed": scan.distribute.as_ref().map(|d| d.raw.clone()), "versions": versions,
         "entry": {"exists": entry.as_ref().is_some_and(|e| e.is_file()), "path": entry},
         "problems": scan.problems,
@@ -287,37 +337,44 @@ mod tests {
         std::fs::create_dir_all(&rels).unwrap();
         let who = Who { login: "maint".into(), pc: "PC1".into() };
         let none = |_: &str, _: u64, _: u64| {};
+        let lay = Layout::new("", "", "App");
+        let versions = rels.join("App").join("versions");
         make_zip(&d.join("a.zip"), "1.10.0", "exe-1", ID);
-        let r = place(&p, &rels, &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap();
+        let r = place(&p, &rels, &lay, &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap();
         assert_eq!((r["version"].as_str(), r["placedBy"].as_str()), (Some("1.10.0"), Some("maint")));
-        assert!(rels.join("App").join("1.10.0").join(MARKER).is_file(), "置き場\\アプリ名\\版");
-        assert!(place(&p, &rels, &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap_err().contains("もう置いて"), "同じ版は置かない");
+        assert!(versions.join("1.10.0").join(MARKER).is_file(), "置き場\\アプリ名\\versions\\版");
+        assert!(place(&p, &rels, &lay, &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap_err().contains("もう置いて"), "同じ版は置かない");
         make_zip(&d.join("other.zip"), "1.0.0", "x", "other.app");
-        assert!(place(&p, &rels, &d.join("other.zip"), "o.zip", ID, &who, &none).unwrap_err().contains("このアプリ"), "ほかのアプリは断る");
+        assert!(
+            place(&p, &rels, &lay, &d.join("other.zip"), "o.zip", ID, &who, &none).unwrap_err().contains("このアプリ"),
+            "ほかのアプリは断る"
+        );
         std::fs::write(d.join("junk.zip"), "not a zip").unwrap();
-        assert!(place(&p, &rels, &d.join("junk.zip"), "j.zip", ID, &who, &none).is_err(), "ZIP でない物は断る");
-        let left: Vec<_> = std::fs::read_dir(rels.join("App")).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(place(&p, &rels, &lay, &d.join("junk.zip"), "j.zip", ID, &who, &none).is_err(), "ZIP でない物は断る");
+        let left: Vec<_> = std::fs::read_dir(&versions).unwrap().flatten().map(|e| e.file_name()).collect();
         assert_eq!(left.len(), 1, "途中の物を残さない: {left:?}");
         assert_eq!(release::scan(&rels, ID).newest().unwrap().version, "1.10.0", "各 PC の取り込みにそのまま通る");
         // 配る・前の版へ戻す
         make_zip(&d.join("b.zip"), "1.10.1", "exe-2", ID);
-        place(&p, &rels, &d.join("b.zip"), "b.zip", ID, &who, &none).unwrap();
-        let s = set_distributed(&rels, "1.10.1", ID, &who).unwrap();
+        place(&p, &rels, &lay, &d.join("b.zip"), "b.zip", ID, &who, &none).unwrap();
+        let s = set_distributed(&rels, &lay, "1.10.1", ID, &who).unwrap();
         assert!(s["notes"].as_array().unwrap().is_empty(), "{s}");
         let entry = rels.join("App").join("App.exe");
-        assert_eq!(std::fs::read_to_string(&entry).unwrap(), "exe-2", "配る入口はその版の exe");
+        assert_eq!(std::fs::read_to_string(&entry).unwrap(), "exe-2", "配る入口はその版の exe（アプリのフォルダの直下）");
         assert_eq!(update::dist_version(&rels.join("App")).as_deref(), Some("1.10.1"), "入口の隣に名乗りも置く");
-        set_distributed(&rels, "1.10.0", ID, &who).unwrap();
+        set_distributed(&rels, &lay, "1.10.0", ID, &who).unwrap();
         let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
         assert_eq!((dj["version"].as_str(), dj["previous"].as_str()), (Some("1.10.0"), Some("1.10.1")), "戻すのも選び直し・前の版を覚える");
         assert_eq!(std::fs::read_to_string(&entry).unwrap(), "exe-1");
-        assert!(set_distributed(&rels, "9.9.9", ID, &who).is_err());
+        assert!(set_distributed(&rels, &lay, "9.9.9", ID, &who).is_err());
         // 配る入口は「この PC へ写す」と間違えない（名乗りが隣にあっても、入口として扱う）
         assert_eq!(entry_folder(&entry, ID), Some(rels.join("App")), "隣に distribute.json がある入口");
         assert_eq!(entry_folder(&d.join("a.zip"), ID), None);
         // 新しい PC: 入口を開くだけで配る版を取り込み、app に据える
-        let v = view_of(&release::scan(&rels, ID), &rels, false, "src", "App");
+        let v = view_of(&release::scan(&rels, ID), &rels, false, "src", &lay);
         assert_eq!((v["versions"].as_array().unwrap().len(), v["entry"]["exists"].as_bool()), (2, Some(true)));
+        assert_eq!(v["versionsFolder"], json!(versions), "画面に版を置くフォルダを言う");
+        assert!(v["versions"].as_array().unwrap().iter().all(|x| x["inVersions"] == true));
         assert_eq!(install_from_entry(&p, &rels.join("App"), ID, &|_| {}).unwrap(), "1.10.0");
         assert_eq!(update::dist_version(&p.app()).as_deref(), Some("1.10.0"));
         assert_eq!(remembered_entry(&p), Some(rels.join("App")), "入口の置き場を控える");
@@ -327,10 +384,51 @@ mod tests {
         assert!(remove_version(&rels, "1.10.0", ID).unwrap_err().contains("配っている版"));
         let r = remove_version(&rels, "1.10.1", ID).unwrap();
         assert_eq!((r["removed"].as_u64(), r["notes"].as_array().unwrap().len()), (Some(1), 0), "{r}");
-        assert!(!rels.join("App").join("1.10.1").exists());
-        let left: Vec<_> = std::fs::read_dir(rels.join("App")).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(!versions.join("1.10.1").exists());
+        let left: Vec<_> = std::fs::read_dir(&versions).unwrap().flatten().map(|e| e.file_name()).collect();
         assert!(left.iter().all(|n| !n.to_string_lossy().contains("removing")), "消しかけを残さない: {left:?}");
         assert!(remove_version(&rels, "1.10.1", ID).unwrap_err().contains("ありません"));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn folder_names_and_the_old_layout() {
+        let d = tmp("dist-names");
+        let (rels, p) = (d.join("Releases"), Paths::new(&d.join("local")));
+        std::fs::create_dir_all(&rels).unwrap();
+        let who = Who::default();
+        let none = |_: &str, _: u64, _: u64| {};
+        // 前の形（1.1 まで）: 版をアプリのフォルダの直下に置いていた。そのまま見つかり、配れる
+        make_zip(&d.join("a.zip"), "1.0.0", "exe-1", ID);
+        place(&p, &rels, &Layout::new("", "", "App"), &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap();
+        std::fs::rename(rels.join("App").join("versions").join("1.0.0"), rels.join("App").join("1.0.0")).unwrap();
+        let def = Layout::new("", "", "App");
+        assert_eq!(app_folder(&rels, &release::scan(&rels, ID), &def), rels.join("App"), "前の形の版の隣がアプリのフォルダ");
+        let v = view_of(&release::scan(&rels, ID), &rels, false, "src", &def);
+        assert_eq!(v["versions"][0]["inVersions"], false, "前の形の版は、画面でそうと分かる");
+        set_distributed(&rels, &def, "1.0.0", ID, &who).unwrap();
+        // 次に置く版は versions の下（名前を決めていなければ、今あるアプリのフォルダを使い続ける）
+        make_zip(&d.join("b.zip"), "1.1.0", "exe-2", ID);
+        place(&p, &rels, &def, &d.join("b.zip"), "b.zip", ID, &who, &none).unwrap();
+        assert!(rels.join("App").join("versions").join("1.1.0").join(MARKER).is_file());
+        // 名前を決めた: アプリのフォルダ・版を置くフォルダがその名前で作られる
+        std::thread::sleep(std::time::Duration::from_millis(1100)); // 配る版の覚えは秒で比べる（あとで決めた方が効く）
+        let named = Layout::new("電子印", "版", "App");
+        make_zip(&d.join("c.zip"), "1.2.0", "exe-3", ID);
+        place(&p, &rels, &named, &d.join("c.zip"), "c.zip", ID, &who, &none).unwrap();
+        assert!(rels.join("電子印").join("版").join("1.2.0").join(MARKER).is_file(), "置き場\\電子印\\版\\1.2.0");
+        set_distributed(&rels, &named, "1.2.0", ID, &who).unwrap();
+        assert!(rels.join("電子印").join("App.exe").is_file(), "配る入口も、決めた名前のアプリのフォルダへ");
+        assert_eq!(
+            release::scan(&rels, ID).distribute.unwrap().version,
+            "1.2.0",
+            "あとで決めた配る版が効く（各 PC はどちらのフォルダも見る）"
+        );
+        // 更新の置き場にアプリのフォルダそのものを書いた: その中に版を置くフォルダを作る（アプリのフォルダを二重に作らない）
+        let app = rels.join("電子印");
+        make_zip(&d.join("e.zip"), "1.3.0", "exe-4", ID);
+        place(&p, &app, &named, &d.join("e.zip"), "e.zip", ID, &who, &none).unwrap();
+        assert!(app.join("版").join("1.3.0").join(MARKER).is_file());
         let _ = std::fs::remove_dir_all(&d);
     }
 

@@ -371,20 +371,23 @@ async function openHistory() {
 }
 
 /* ================================================================ 窓からの知らせ */
+/** 通知領域・右クリックのメニューの「押すとコピー」: which = 登録した印の番号 | 'last'（いま作っている印）→ {ok, text}（右下に出す知らせ） */
+async function copyFor(which) {
+  const p = which === 'last' ? { name: 'いま作っている印', s: S } : presets[Number(which)];
+  if (!p) return { ok: false, text: '' };
+  try {
+    const s = merge(DEFAULTS, { ...p.s, dpi: S.dpi });
+    const bytes = await pngBytes(render(document.createElement('canvas'), s, exportPx(s)));
+    await backend.copyPng(bytes, s.dpi);
+    return { ok: true, text: `「${p.name}」をコピーしました。貼り付け先で Ctrl+V` };
+  } catch (e) {
+    return { ok: false, text: `コピーできませんでした：${e.message}` };
+  }
+}
+
 // トレイの「押すとコピー」: 窓が隠れていても、ここで描いて Rust のクリップボードへ置き、右下に知らせを出す
 function bindWindow() {
-  backend.on('ps:copy', async (which) => {
-    const p = which === 'last' ? { name: '前回の印', s: S } : presets[Number(which)];
-    if (!p) return;
-    try {
-      const s = merge(DEFAULTS, { ...p.s, dpi: S.dpi });
-      const bytes = await pngBytes(render(document.createElement('canvas'), s, exportPx(s)));
-      await backend.copyPng(bytes, s.dpi);
-      backend.notify?.(`「${p.name}」をコピーしました。貼り付け先で Ctrl+V`);
-    } catch (e) {
-      backend.notify?.(`コピーできませんでした：${e.message}`);
-    }
-  });
+  backend.on('ps:copy', async (which) => { const r = await copyFor(which); if (r.text) backend.notify?.(r.text); });
   backend.on('ps:shown', () => { if (S.type === 'date' && S.dateAuto) update(); });
   backend.on('ps:update', (u) => { settings.setUpdate(u); notices.setUpdate(u); markUpdate(u); });
   backend.on('ps:settings', async () => settings.refresh(await backend.load()));
@@ -392,6 +395,9 @@ function bindWindow() {
 
 // 自己診断（desktop/src/selftest.js）が使う口: 印を書き出す（画面の描き方そのまま）
 window.__ps = {
+  /** 画面が使う窓口そのもの（自己診断が、画面と同じ道で保存・コピーを確かめる） */
+  backend,
+  copyFor,
   /** 今の設定に s を重ねて px の大きさで描いた canvas（見本帳・評価関数が使う） */
   async drawStamp(s, px, opts) {
     return render(document.createElement('canvas'), merge(DEFAULTS, { ...S, ...s }), px, opts);

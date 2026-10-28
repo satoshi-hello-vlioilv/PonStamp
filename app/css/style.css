@@ -210,12 +210,26 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
 
 .set-more summary { cursor: pointer; color: var(--text); font-size: 13px; padding: 4px 0; }
 .dist { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
-.versions { width: 100%; border-collapse: collapse; font-size: 13px; }
-.versions th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
-.versions td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.versions tr.on td { background: var(--ok-bg); }
-.versions .num { text-align: right; font-variant-numeric: tabular-nums; }
-.versions .acts { display: flex; gap: 6px; justify-content: flex-end; }
+.dist-tree { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.dist-tree figcaption { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.dist-tree ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.dist-tree li { display: grid; grid-template-columns: minmax(0, max-content) 1fr auto; align-items: center; gap: 10px; }
+.dist-tree .tn { font: 12px/1.7 Consolas, "BIZ UDGothic", monospace; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dist-tree .tw { color: var(--muted); }
+.dist-tree .t1 .tn { padding-left: 14px; } .dist-tree .t2 .tn { padding-left: 28px; } .dist-tree .t3 .tn { padding-left: 42px; }
+.dist-tree .t1 .tn::before, .dist-tree .t2 .tn::before, .dist-tree .t3 .tn::before { content: "└ "; color: var(--muted); }
+.dist-tree .missing .tn { color: var(--muted); font-style: italic; }
+.dist-tree li.on .tn { font-weight: 700; }
+.dist-tree li.ver { padding: 3px 4px 3px 0; border-top: 1px dashed var(--line); }
+.dist-tree li.on { background: var(--ok-bg); }
+.dist-tree .tn .tag { font-family: inherit; }
+.dist-tree .acts { display: flex; gap: 4px; } .dist-tree .acts .btn { height: 24px; padding: 0 10px; font-size: 12px; }
+.dist-names { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px 10px; align-items: end; }
+.dist-names label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.dist-names .hint { grid-column: 1 / -1; margin: 0; }
+.dist-place .btn { flex: none; white-space: nowrap; } .dist-place .btn.primary { font-weight: 700; }
+.dist-entry h3 { margin: 4px 0 6px; font-size: 13px; }
+.dist-entry .hint { margin: 4px 0 0; }
 .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--ok); color: var(--panel); font-size: 11px; font-weight: 700; }
 
 .history { padding: 8px 18px 18px; }

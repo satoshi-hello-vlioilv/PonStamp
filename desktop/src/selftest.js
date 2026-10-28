@@ -1,5 +1,7 @@
 // 自己診断（PONSTAMP_SELFTEST=<結果のファイル> で起こしたときだけ、画面が出たあとに窓が流す）。
 // 本物の窓（Windows は WebView2・Linux は WebKitGTK）で、画面と Rust の命令が通しで動くかを確かめ、結果を selftest_done へ渡す。
+// 保存・コピーは、画面が使うのと同じ窓口（app/js/backend.js）と、本物のボタンを通す（窓口を飛ばして Rust を直に呼ぶと、
+// 窓口の不具合〈見出しの値を落とす〉を見逃す。1.1.0 で、コピー・保存が「解像度の値が違います」で止まったのを見逃した）。
 // 保存した PNG の解像度は画面からは読めないので、Rust（main.rs の selftest_finish）が読んで確かめる。
 (async () => {
   const { invoke } = window.__TAURI__.core;
@@ -28,14 +30,26 @@
       const out = await ps.exportStamp({ type, dpi: 600 });
       const want = Math.round((out.mm / 25.4) * 600);
       check(`${type} の画素の数が mm と dpi に合う`, out.px === want, `${out.px}px（${out.mm}mm・600dpi なら ${want}px）`);
-      const r = await invoke('save_png', out.bytes, { headers: { 'x-name': encodeURIComponent(`selftest_${type}`), 'x-dpi': '600' } });
+      const r = await ps.backend.savePng(out.bytes, `selftest_${type}`, 600);
       saved.push({ type, path: r.path, dpi: 600 });
     }
 
     // 3. クリップボード（Windows は Rust が置く。ほかの OS は画面が置くので native=false）
     const one = await ps.exportStamp({ type: 'mitome', dpi: 300 });
-    const c = await invoke('copy_png', one.bytes, { headers: { 'x-dpi': '300' } });
+    const c = await ps.backend.copyPng(one.bytes, 300);
     check('クリップボードへ置ける', navigator.userAgent.includes('Windows') ? c.native === true : c.native === false, JSON.stringify(c));
+    // 3b. 本物の「コピー」のボタン: 押すと知らせが「コピーしました」になる（失敗の知らせが出ない）。
+    //     Windows だけ（ほかの OS は画面がブラウザの仕組みで置き、それは人が押したときだけ許されるので、スクリプトの押しでは確かめられない）
+    const toast = document.querySelector('#toast');
+    if (navigator.userAgent.includes('Windows')) {
+      toast.textContent = '';
+      document.querySelector('#btnCopy').click();
+      for (let i = 0; i < 50 && !toast.textContent; i++) await wait(100);
+      check('コピーのボタンで、コピーできる', toast.textContent.startsWith('コピーしました') && !toast.classList.contains('err'), toast.textContent);
+    }
+    // 3c. 通知領域・右クリックのメニューからのコピー（窓の知らせ ps:copy と同じ道）
+    const n = await ps.copyFor('last');
+    check('メニューからのコピーができる', n.ok, n.text);
 
     // 4. 登録した印を覚え、読み直せる
     const before = await invoke('load');

@@ -12,9 +12,10 @@ export const inWindow = !!T?.core?.invoke;
 
 function tauriBackend() {
   const { invoke } = T.core;
-  const call = async (cmd, args) => {
+  // opts（見出し）も invoke へ渡す。落とすと Rust に解像度・名前が届かず、保存・コピー・版を置くが止まる（1.1.0 の不具合）
+  const call = async (cmd, args, opts) => {
     try {
-      return await invoke(cmd, args);
+      return await invoke(cmd, args, opts);
     } catch (e) {
       throw new Error(typeof e === 'string' ? e : e?.message || String(e));
     }
