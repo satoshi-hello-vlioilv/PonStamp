@@ -26,22 +26,26 @@ export function parseView(text) {
   return { width: Number(m[1]), height: Number(m[2]) };
 }
 
+/** いまの版（app/version.json）と次の版。見本の版はこれに合わせる（更新履歴の先頭といまの版が食い違わないように） */
+const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
+const NEXT = VERSION.replace(/\d+$/, (n) => String(Number(n) + 1));
+
 /** 窓の答えの代わり（backend.js のブラウザの代わりが読む）: この PC へ写したアプリ・常駐あり・ショートカットあり・最新の版 */
 const DEMO = {
-  info: { shell: 'tauri', name: 'PonStamp', version: '1.0.0', installed: true, root: 'C:\\Users\\yamada\\AppData\\Local\\PonStamp' },
+  info: { shell: 'tauri', name: 'PonStamp', version: VERSION, installed: true, root: 'C:\\Users\\yamada\\AppData\\Local\\PonStamp' },
   autostart: { on: true, can: true },
   shortcut: { ask: false, links: ['C:\\Users\\yamada\\Desktop\\PonStamp.lnk', 'C:\\Users\\yamada\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\PonStamp.lnk'] },
-  update: { state: 'latest', current: '1.0.0', checkedAt: '2026-10-27 09:30', source: '\\\\fs01\\共有\\Releases' },
+  update: { state: 'latest', current: VERSION, checkedAt: '2026-10-27 09:30', source: '\\\\fs01\\共有\\Releases' },
   updateSource: '\\\\fs01\\共有\\Releases',
   updateSourceUsed: '\\\\fs01\\共有\\Releases',
   release: {
     reachable: true, found: '\\\\fs01\\共有\\Releases', adjusted: false,
     appFolder: '\\\\fs01\\共有\\Releases\\PonStamp', versionsFolder: '\\\\fs01\\共有\\Releases\\PonStamp\\versions',
     names: { app: 'PonStamp', versions: 'versions', appSet: false },
-    distributed: { version: '1.0.0', entry: 'PonStamp.exe' },
+    distributed: { version: VERSION, entry: 'PonStamp.exe' },
     versions: [
-      { version: '1.0.1', placedAt: '2026-10-27T10:12:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9437184, inVersions: true },
-      { version: '1.0.0', placedAt: '2026-10-20T16:40:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9332736, inVersions: true },
+      { version: NEXT, placedAt: '2026-10-27T10:12:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9437184, inVersions: true },
+      { version: VERSION, placedAt: '2026-10-20T16:40:00', placedBy: 'sato', placedPc: 'PC-0123', bytes: 9332736, inVersions: true },
     ],
     entry: { exists: true, path: '\\\\fs01\\共有\\Releases\\PonStamp\\PonStamp.exe' },
     problems: [],
@@ -62,7 +66,7 @@ export const SEED = {
 /** 初めて開いた PC（登録した印なし・ショートカットを尋ねる） */
 const FIRST = { demo: { ...DEMO, shortcut: { ask: true, links: [] }, autostart: { on: false, can: true } } };
 /** 新しい版を取り込んだ所 */
-const UPDATE = { ...SEED, demo: { ...DEMO, update: { ...DEMO.update, state: 'ready', ready: '1.0.1', direction: 'up' } } };
+const UPDATE = { ...SEED, demo: { ...DEMO, update: { ...DEMO.update, state: 'ready', ready: NEXT, direction: 'up' } } };
 
 /** 撮る状態。順に流す（前の状態からの続き）。seed: 開く前に入れる覚え（null なら何も覚えていない初めての状態） */
 export const STATES = [

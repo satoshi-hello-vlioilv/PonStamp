@@ -2,8 +2,7 @@
 // 画面のどこに置いても動くよう、渡された箱の中に自分で組み立てる。外（Rust・ブラウザ）とは backend.js だけで話す。
 
 import { bytes, fill, h, when } from './dom.js';
-
-const DPIS = [[300, '軽い'], [600, '標準'], [1200, '高精細']];
+import { DPIS } from './stamp.js';
 
 /** 版を数で比べる（1.10.0 は 1.9.0 より新しい）。a が古ければ負 */
 export function compareVersions(a, b) {
@@ -60,7 +59,7 @@ export function createSettings(root, deps) {
       if (dir) { path.value = dir; await save(); }
     };
     const dpi = h('div', { class: 'seg small', role: 'group', 'aria-label': '解像度' },
-      DPIS.map(([v, note]) => h('button', { type: 'button', 'aria-pressed': String(deps.getDpi() === v), onclick: () => { deps.setDpi(v); render(); } },
+      DPIS.map(({ v, note }) => h('button', { type: 'button', 'aria-pressed': String(deps.getDpi() === v), onclick: () => { deps.setDpi(v); render(); } },
         `${v} dpi`, h('small', {}, note))));
     return sec('out', '保存とコピー',
       row('PNG の保存先', h('div', { class: 'row' }, path, btn('参照…', pick), btn('開く', () => act(() => backend.openFolder())))),

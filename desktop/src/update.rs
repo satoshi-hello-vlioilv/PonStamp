@@ -482,6 +482,18 @@ pub fn copy_for_run(p: &Paths, app_exe: &Path) -> Result<PathBuf, String> {
 }
 
 /// 古い版ごとの写しを片付ける（動いている版は消せないので、消せた物だけ）。
+/// 前の版の窓（終わらせて、いまの版に代わる物）: いまの exe が版ごとの写しなら、ほかの写しから動いている窓（pid）。
+///
+/// 写しは app の exe から作るので、ほかの写しは app が入れ替わる前の物（古い版）。古い窓が常駐したままだと、
+/// 「1 つだけ起動」の仕組みで古い窓が前に出るだけになり、新しい版に移れない（1.0・1.1 の利用者は、止まる版から抜けられなかった）。
+/// 同じ写しの窓（同じ版）は代わらない（いつもどおり、前の窓を前に出す）。
+pub fn stale_windows(p: &Paths, me: &Path, my_pid: u32, running: &[(u32, PathBuf)]) -> Vec<u32> {
+    if !inside(me, &p.desktop()) {
+        return vec![];
+    }
+    running.iter().filter(|(pid, exe)| *pid != my_pid && inside(exe, &p.desktop()) && !same(exe, me)).map(|(pid, _)| *pid).collect()
+}
+
 pub fn cleanup_copies(p: &Paths, keep: &Path) {
     for e in std::fs::read_dir(p.desktop()).into_iter().flatten().flatten() {
         let path = e.path();
@@ -732,5 +744,22 @@ pub mod tests {
         cleanup_copies(&p, &copy);
         assert!(copy.is_file() && !p.desktop().join("old-1").exists(), "古い写しは片付け、動いている写しは残す");
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_newer_copy_replaces_windows_of_other_copies_only() {
+        let d = tmp("stale");
+        let p = Paths::new(&d);
+        let copy = |n: &str| {
+            let f = p.desktop().join(n).join(EXE);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(&f, n).unwrap();
+            f
+        };
+        let (old, new, other) = (copy("100-1"), copy("200-2"), d.join("elsewhere").join(EXE));
+        let running = vec![(10, old.clone()), (20, new.clone()), (21, new.clone()), (30, other.clone())];
+        assert_eq!(stale_windows(&p, &new, 20, &running), vec![10], "ほかの写し（古い版）の窓だけ。同じ写し・写しの外の物は残す");
+        assert!(stale_windows(&p, &other, 30, &running).is_empty(), "写しでない exe（開発・写していない形）は何も終わらせない");
+        assert!(stale_windows(&p, &old, 10, &[(10, old.clone())]).is_empty(), "自分は数えない");
     }
 }
