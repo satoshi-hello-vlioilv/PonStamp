@@ -1,8 +1,19 @@
 {
   "_about": "版と更新履歴（1 か所の定義）。配る物（app/・desktop/）を変えたら version を上げ、changelog の先頭に 1 件足し、python tools/release.py --release で release を書く（手で書かない）。tests/test_version.py が、版を上げずに中身を変えたのを止める。desktop/Cargo.toml と desktop/tauri.conf.json の version もこの版にそろえる。",
-  "version": "1.2.0",
-  "release": {"version": "1.2.0", "digest": "c15be2d370742be8"},
+  "version": "1.3.0",
+  "release": {"version": "1.3.0", "digest": "7fc4cfdcd6980594"},
   "changelog": [
+    {
+      "version": "1.3.0",
+      "date": "2026-10-31",
+      "notes": [
+        "画面の左上、名前のすぐ隣に版（ver 1.3.0）を出しました。押すと更新履歴が開き、いまの版に「いまの版」の札が付きます",
+        "画面の文字の大きさを変えられるようにしました（右上の「画面の文字」の − ＋、または Ctrl＋＋・Ctrl＋−・Ctrl＋0。90%〜140%。窓が狭いときは入る大きさまで）。印の中の字の大きさは「印の字の大きさ」です",
+        "新しい版の PonStamp.exe を開くと、通知領域に常駐している前の版を閉じて、新しい版で開くようにしました（前は前の版の窓が前に出るだけで、新しい版に移れませんでした）",
+        "1.0.0・1.1.0 でコピー・PNG 保存が「解像度（dpi）の値が違います」で止まっていた PC も、この版の exe を開くだけで直ります",
+        "版の書き方を、画面のどこでも「ver 1.3.0」にそろえました"
+      ]
+    },
     {
       "version": "1.2.0",
       "date": "2026-10-28",

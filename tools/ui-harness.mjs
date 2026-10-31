@@ -78,6 +78,9 @@ export const STATES = [
   { name: 'update', seed: UPDATE, run: async () => {} },
   { name: 'settings', seed: UPDATE, run: async (page) => openSettings(page) },
   { name: 'distribution', seed: SEED, run: async (page) => openDistribution(page) },
+  // 画面の文字を 125% に（窓が狭ければ入る所まで）・版の札を押して更新履歴を開いた所
+  { name: 'large', seed: SEED, run: async (page) => { await page.evaluate(() => localStorage.setItem('ponstamp.zoom', '125')); await page.reload(); await ready(page); } },
+  { name: 'history', seed: SEED, run: async (page) => { await page.locator('[data-open="history"]').first().click(); await page.waitForTimeout(200); } },
 ];
 export const STATE_NAMES = STATES.map((s) => s.name);
 
