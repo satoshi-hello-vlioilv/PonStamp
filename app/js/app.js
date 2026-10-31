@@ -1,6 +1,7 @@
 import { backend } from './backend.js';
 import { fill, h } from './dom.js';
-import { createNotices, createSettings, loadHistory } from './settings.js';
+import { createNotices, createSettings, loadVersion, verText } from './settings.js';
+import { createZoom } from './zoom.js';
 import { ADV_DEFAULTS, COLORS, DATE_FORMATS, DATE_SEPS, DEFAULTS, FONT_CANDIDATES, TEXT_SIZE, TYPES, clamp, clone, dateText, exportPx, merge, render, stampDate, todayISO } from './stamp.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -143,7 +144,8 @@ function syncUI() {
 
 function draw() {
   const cv = $('#pv');
-  const px = Math.round(Math.min(800, (cv.clientWidth || 300) * (window.devicePixelRatio || 1)));
+  // 見える大きさ = CSS の幅 × 画面の文字の大きさ（zoom）× 画面の細かさ。それに合わせて描く（拡大してもぼやけない）
+  const px = Math.round(Math.min(800, (cv.clientWidth || 300) * zoom.value / 100 * (window.devicePixelRatio || 1)));
   render(cv, S, Math.max(200, px));
 }
 
@@ -281,6 +283,10 @@ function bind() {
   $('#btnFolder').addEventListener('click', () => backend.openFolder().catch(e => toast(e.message, true)));
   $('#btnAddPreset').addEventListener('click', openPresetDialog);
   $('#btnSettings').addEventListener('click', () => $('#dlgSettings').showModal());
+  $('#btnVersion').addEventListener('click', openHistory);
+  $('#btnZoomOut').addEventListener('click', () => zoom.step(-1));
+  $('#btnZoomIn').addEventListener('click', () => (zoomCapped ? toast(ZOOM_CAPPED) : zoom.step(1)));
+  $('#btnZoomReset').addEventListener('click', () => zoom.set(100));
   $$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
 
   document.addEventListener('keydown', e => {
@@ -311,6 +317,7 @@ async function init() {
   presets = Array.isArray(st.presets) ? st.presets.filter(p => p && p.name && p.s) : [];
   settings.refresh(st);
   notices.refresh(st);
+  showVersion(st.info?.version);
   markUpdate(st.update);
   buildFonts();
   buildSwatches();
@@ -364,11 +371,33 @@ const settings = createSettings($('#settings'), {
 });
 const notices = createNotices($('#notices'), { backend, toast, onChange: () => settings.refresh({}) });
 
+/* ================================================================ 版と更新履歴・画面の文字の大きさ */
+// いまの版: 窓が答えた版（この PC のアプリの名乗り）。ブラウザで試すときは画面に入っている version.json の版
+let version = '';
+async function showVersion(fromWindow) {
+  version = fromWindow || (await loadVersion()).version;
+  $('#verText').textContent = verText(version);
+}
+
 async function openHistory() {
-  const list = await loadHistory();
-  fill($('#history'), list.map(e => h('section', {}, h('h2', {}, `版 ${e.version}`, h('small', {}, e.date)), h('ul', {}, e.notes.map(n => h('li', {}, n))))));
+  const { changelog } = await loadVersion();
+  fill($('#history'), changelog.map(e => h('section', {},
+    h('h2', {}, verText(e.version), h('small', {}, e.date), e.version === version ? h('span', { class: 'now' }, 'いまの版') : null),
+    h('ul', {}, e.notes.map(n => h('li', {}, n))))));
   $('#dlgHistory').showModal();
 }
+
+// 窓が狭くて大きくできないとき: ＋は薄く見せるが押せる（無効にすると説明も出ない）。押すと理由を言う
+const ZOOM_CAPPED = 'この窓の大きさでは、これより大きくできません（窓を広げると大きくできます）';
+let zoomCapped = false;
+const zoom = createZoom(({ value, steps, capped }) => {
+  zoomCapped = capped;
+  $('#btnZoomReset').textContent = `${value}%`;
+  $('#btnZoomOut').disabled = value === steps[0];
+  $('#btnZoomIn').disabled = value === steps.at(-1) && !capped;
+  $('#btnZoomIn').classList.toggle('capped', capped);
+  $('#btnZoomIn').title = capped ? ZOOM_CAPPED : '大きく（Ctrl＋＋）';
+});
 
 /* ================================================================ 窓からの知らせ */
 /** 通知領域・右クリックのメニューの「押すとコピー」: which = 登録した印の番号 | 'last'（いま作っている印）→ {ok, text}（右下に出す知らせ） */

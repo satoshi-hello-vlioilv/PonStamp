@@ -11,9 +11,19 @@
 <!-- 形（2026-10 の改良で決めた G2「アプリの殻」）: 左の帯に登録した印・中に入力・右に印とコピー。設定は右上から引き出す。
      窓の高さにぴったり収め、頁ごとは送らない（入力の列が長いときは列の中だけ送る）。
      入力の列（v2 で決めた L）: 種類 → 印の文字（字の大きさまで）→ 印の見た目（色・大きさ）→ 書体と風合いの箱。広い画面では左の帯を広げ、登録した印を大きな見本で並べる -->
+<!-- 見出し（v4 で決めた G）: 名前のすぐ隣に版の札（押すと更新履歴）。右に画面の文字の大きさ（− 100% ＋）と設定 -->
 <header class="top">
-  <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー</div>
-  <button type="button" class="btn small" id="btnSettings" data-open="settings" title="保存先・解像度・常駐・更新・配布">設定</button>
+  <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー
+    <button type="button" class="verchip" id="btnVersion" data-open="history" title="更新履歴を見る"><b id="verText">ver</b><span>更新履歴</span></button></div>
+  <div class="tools">
+    <div class="zoom" id="zoom" role="group" aria-label="画面の文字の大きさ">
+      <span class="zl">画面の文字</span>
+      <button type="button" class="zb" id="btnZoomOut" aria-label="画面の文字を小さく" title="小さく（Ctrl＋−）">−</button>
+      <button type="button" class="zv" id="btnZoomReset" title="押すと 100% に戻す（Ctrl＋0）">100%</button>
+      <button type="button" class="zb" id="btnZoomIn" aria-label="画面の文字を大きく" title="大きく（Ctrl＋＋）">＋</button>
+    </div>
+    <button type="button" class="btn small" id="btnSettings" data-open="settings" title="保存先・解像度・常駐・更新・配布">設定</button>
+  </div>
 </header>
 <div class="shell">
   <aside class="rail" aria-label="登録した印">
@@ -76,7 +86,7 @@
 
     <!-- 字の大きさは字の物なので「印の文字」の下。スライダーはどれも「名前 ｜ 帯 ｜ 値」の 1 行 -->
     <div class="field slider">
-      <div class="lblrow"><label for="rgText">字の大きさ</label><output data-out="textSize"></output></div>
+      <div class="lblrow"><label for="rgText" title="印の中の字の大きさ（画面の文字の大きさは右上）">印の字の大きさ</label><output data-out="textSize"></output></div>
       <input id="rgText" type="range" min="60" max="110" step="5" data-key="textSize">
     </div>
 
@@ -131,7 +141,7 @@
       <button type="button" class="btn" id="btnSave">PNG保存<kbd>Ctrl+S</kbd></button>
       <button type="button" class="btn" id="btnFolder">保存フォルダ</button>
     </div>
-    <p class="hint center">コピーしたら、Excel・Word・PowerPoint・PDF 編集ソフトなどで Ctrl+V で貼り付けます</p>
+    <p class="hint center">コピーしたら、貼り付け先（Excel・Word・PDF など）で Ctrl+V</p>
   </section>
   </main>
   </div>
