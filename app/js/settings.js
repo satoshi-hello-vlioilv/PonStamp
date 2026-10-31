@@ -204,7 +204,7 @@ export function createSettings(root, deps) {
         item(0, `${r.found}${sep}`, r.adjusted ? '更新の置き場（この PC での見え方で探した）' : '更新の置き場（「更新」で決める）'),
         item(1, `${tail(r.appFolder) || n.app || 'PonStamp'}${sep}`, 'アプリのフォルダ'),
         item(2, `${entryName}・app.json`, '配る入口（新しい PC へ渡す）', { missing: !r.entry?.exists }),
-        item(2, 'distribute.json', dist ? `配る版の覚え（${dist}）` : '配る版の覚え（配ると作る）', { missing: !dist }),
+        item(2, 'distribute.json', dist ? `配る版の覚え（${verText(dist)}）` : '配る版の覚え（配ると作る）', { missing: !dist }),
         item(2, `${tail(r.versionsFolder) || n.versions || 'versions'}${sep}`, '版を置くフォルダ', { missing: !ins.length }),
         ins.length ? ins.map((v) => verItem(3, v)) : item(3, `<版>${sep}`, 'まだ無い（最初に版を置くと作る）', { missing: true }),
         old.map((v) => verItem(2, v, '前の形（1.1 まで）'))));
