@@ -1,5 +1,5 @@
 # CLAUDE.md の「push 前の確かめ」を GitHub でも回す（型・構文・lint〔ruff・clippy〕・試験）。
-# - tools: 画面と道具の JS の構文・Python の構文と lint・試験（道具は Python の標準の部品だけで動く）
+# - tools: 画面と道具の JS の構文・Python の構文と lint・試験（道具は Python の標準の部品だけで動く）・画面の評価関数（Node・Chromium）
 # - desktop: 窓（Rust・Tauri）の書式・作成・試験と、本物の窓（WebKitGTK）での自己診断と更新の通し（Windows の WebView2 は desktop.yml）
 name: CI
 
@@ -30,6 +30,15 @@ jobs:
           ruff check tools tests
       - name: test（Python）
         run: python -m unittest discover -s tests -t .
+      # 評価関数（画面の部品の動き。ものさし・使い方は本物の Chromium で押して確かめる）。Playwright は手元と同じ版
+      - name: test（画面の評価関数・Node）
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.63.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node tools/presets-eval.mjs
+          node tools/ruler-eval.mjs
+          node tools/presets-flow-eval.mjs
 
   desktop:
     runs-on: ubuntu-latest

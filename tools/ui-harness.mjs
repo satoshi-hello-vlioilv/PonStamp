@@ -81,6 +81,10 @@ export const STATES = [
   // 画面の文字を 125% に（窓が狭ければ入る所まで）・版の札を押して更新履歴を開いた所
   { name: 'large', seed: SEED, run: async (page) => { await page.evaluate(() => localStorage.setItem('ponstamp.zoom', '125')); await page.reload(); await ready(page); } },
   { name: 'history', seed: SEED, run: async (page) => { await page.locator('[data-open="history"]').first().click(); await page.waitForTimeout(200); } },
+  // 登録した印を呼び出して氏名を変えた所（呼び出したときの知らせが消えてから）・貼り付けの大きさを確かめる窓・2 番目の印の「直す ▾」
+  { name: 'edited', seed: SEED, run: async (page) => { await page.locator('.pchip .load').first().click(); await page.fill('#inName', '山田太郎'); await page.waitForTimeout(3000); } },
+  { name: 'check', seed: SEED, run: async (page) => { await page.locator('[data-open="check"]').first().click(); await page.waitForTimeout(200); } },
+  { name: 'organize', seed: SEED, run: async (page) => { await page.locator('.pchip .more').nth(1).click(); await page.waitForTimeout(150); } },
 ];
 export const STATE_NAMES = STATES.map((s) => s.name);
 
@@ -198,6 +202,10 @@ export function measure() {
     .filter((el) => parseFloat(getComputedStyle(el).fontSize) < 11).length;
   const primaries = controls.filter((el) => el.matches('.primary, .btn.primary, [data-primary]')).length;
   const scroll = Math.max(0, document.documentElement.scrollHeight - vh);
+  // 入力の列の中の送り（頁は送らず、列の中だけ送る作り。書体と風合いを閉じていて列に入らなければ、送らないと見えない物がある）
+  const panel = document.querySelector('.panel');
+  const adv = document.querySelector('details.adv');
+  const panelScroll = panel && !(adv && adv.open) ? Math.max(0, panel.scrollHeight - panel.clientHeight) : 0;
   const stage = document.querySelector('#pv')?.getBoundingClientRect();
   return {
     controls: controls.length,
@@ -206,6 +214,7 @@ export function measure() {
     clipped,
     small,
     scroll,
+    panelScroll,
     preview: stage ? Math.round(stage.width) : 0,
   };
 }

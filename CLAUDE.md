@@ -46,6 +46,7 @@ ruff check tools tests
 # 3. テスト（Python・Rust）
 python -m unittest discover -s tests -t .
 (cd desktop && cargo test --locked)
+node tools/presets-eval.mjs && node tools/ruler-eval.mjs && node tools/presets-flow-eval.mjs   # 画面の評価関数（登録した印・ものさし）
 ```
 
 - 型検査の道具（TypeScript・mypy）は入れていないので、JavaScript・Python は構文の確かめで代えている。入れたら差し替える。Rust はコンパイラが型を確かめる。

@@ -2,7 +2,7 @@
   --zoom: 1;   /* 画面の文字の大きさ（zoom.js が入れる。窓の大きさ 100vh で決める所はこれで割る） */
   --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e2e5ea;
   --chip: #eff1f4; --accent: #c8323a; --focus: #2f6feb; --ck1: #e9ecf0; --ck2: #ffffff;
-  --radius: 12px; --rail: 232px; --chip-line: #c9ced6; color-scheme: light dark;
+  --radius: 12px; --rail: 272px; --chip-line: #c9ced6; color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -43,14 +43,25 @@ body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex
 .rail { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 14px 10px; background: var(--chip); border-right: 1px solid var(--line); }
 .rail-h { margin: 0; padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .06em; }
 .presets { display: flex; flex-direction: column; gap: 4px; }
-.presets:empty::before { content: "「＋ いまの印を登録」で、よく使う印をここに並べ、ワンクリックで呼び出せます"; color: var(--muted); font-size: 12px; padding: 4px 6px; }
-.pchip { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 4px 4px 6px; border-radius: 8px; border: 1px solid transparent; }
+.presets:empty::before { content: "「＋ いまの印を登録」で、よく使う印をここに並べ、ワンクリックでコピー・呼び出しできます"; color: var(--muted); font-size: 12px; padding: 4px 6px; }
+/* 札: 呼び出す（絵と名前）｜コピー（登録した形）｜直す ▾。番号（Ctrl+番号）は大きな札だけ。呼び出した札は枠、変えている間は名前の下に「登録した形」 */
+.pchip { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 4px 4px 6px; border-radius: 8px; border: 1px solid transparent; }
+.pchip.on { background: var(--panel); border-color: var(--accent); }
+.pchip .num { display: none; }
+.pchip .cp { flex: none; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pchip .cp:hover { border-color: var(--accent); color: var(--accent); }
+.pchip .more { flex: none; height: 26px; padding: 0 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.pchip .more:hover { border-color: var(--muted); }
+.pchip .nmw { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.pchip .reg-form { font-size: 11px; color: var(--muted); }
+.pmenu { position: fixed; z-index: 20; min-width: 180px; padding: 6px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.16); display: flex; flex-direction: column; }
+.pmenu button { text-align: left; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.pmenu button:hover:not(:disabled), .pmenu button:focus-visible { background: var(--chip); } .pmenu button:disabled { color: var(--muted); opacity: .55; cursor: default; }
+.pmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; } .pmenu .danger { color: var(--accent); }
 .pchip:hover { background: var(--panel); border-color: var(--line); }
 .pchip .load { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; padding: 0; text-align: left; }
 .pchip canvas { flex: none; width: 36px; height: 36px; }
 .pchip .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pchip .del { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 14px; width: 22px; height: 22px; border-radius: 50%; }
-.pchip .del:hover { background: var(--line); color: var(--text); }
 .rail #btnAddPreset { margin-top: 2px; }
 .rail-tip { margin: 14px 0 0; padding: 10px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .rail-tip b { display: block; margin-bottom: 2px; color: var(--text); font-size: 12px; }
@@ -63,7 +74,14 @@ body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex
   .rail .pchip .load { flex-direction: column; gap: 6px; width: 100%; text-align: center; }
   .rail .pchip .nm { max-width: 100%; }
   .rail .pchip canvas { width: 72px; height: 72px; }
-  .rail .pchip .del { position: absolute; top: 2px; right: 2px; }
+  /* 大きな札: 絵と名前の下に「コピー｜直す ▾」の行。番号は札の左上の角（絵の外） */
+  .rail .pchip { display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; gap: 6px; }   /* 下の行（コピー｜直す）は札の底にそろえる */
+  .rail .pchip .load { grid-column: 1 / -1; }
+  .rail .pchip .cp { width: 100%; height: 28px; } .rail .pchip .more { height: 28px; }
+  .rail .pchip .num { display: inline-grid; place-items: center; position: absolute; top: 6px; left: 6px; width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--line); background: var(--chip);
+    font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rail .pchip .nmw { align-items: center; max-width: 100%; }
+  .rail .pchip.on { border-color: var(--accent); }   /* 呼び出した札（大きな札の枠の指定より強く） */
 }
 
 .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(380px, 430px) 1fr; }
@@ -162,7 +180,9 @@ kbd { font: 11px/1 inherit; opacity: .75; margin-left: 8px; font-weight: 400; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
   background: #1d2330; color: #fff; padding: 10px 18px; border-radius: 10px; max-width: 90vw; font-size: 13px;
   transition: opacity .2s, transform .2s; box-shadow: 0 6px 20px rgba(0,0,0,.25); word-break: break-all; }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast button { flex: none; border: 1px solid rgba(255,255,255,.45); background: none; color: #fff; font: inherit; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
 .toast.err { background: #b42318; }
 
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 18px; width: min(340px, 90vw); }
@@ -255,3 +275,17 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
 .history h2 .now { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 2px; }
 .history h2 { font-size: 14px; margin: 12px 0 4px; } .history h2 small { margin-left: 8px; color: var(--muted); font-weight: 400; }
 .history ul { margin: 0; padding-left: 20px; }
+
+/* ---------------------------------------------------------------- いまの印の行（いつも場所を取る）・大きさを確かめる */
+.nowline { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 2px 0 10px; border-left: 3px solid var(--line); font-size: 13px; color: var(--muted); }
+.nowline.on { border-left-color: var(--accent); color: var(--text); }
+.nowline small { margin-left: 6px; font-size: 12px; color: var(--muted); } .nowline small.chg { color: var(--accent); font-weight: 700; }
+.btn.outline { border-color: var(--accent); color: var(--accent); font-weight: 700; background: var(--panel); }
+.checklink { border: 0; background: none; color: var(--focus); font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
+.checklink:hover { text-decoration: underline; }
+.check-dlg { padding: 0; width: min(640px, calc(100vw / var(--zoom) - 48px)); }
+.check-dlg .ck { display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 18px; }
+.check-dlg canvas { width: 100%; height: auto; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); }
+.check-dlg ol { margin: 0; padding-left: 20px; } .check-dlg .hint { margin: 0; }
+/* 背の低い窓（1280×720 など）: いまの印の行と入力の間を詰め、いちばん長い日付印でも書体と風合いの要約まで入れる */
+@media (max-height: 760px) { .panel { gap: 7px; } .nowline { min-height: 28px; } }
