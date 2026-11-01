@@ -247,6 +247,15 @@ fn hand_off(p: &Paths, me: &Path, notes: &mut Vec<String>) -> bool {
     }
 }
 
+/// 前の版の窓が常駐していれば終わらせて、この版で開く（「1 つだけ起動」の受け口を作る前に）。
+/// 終わらせないと、新しい版を開いても前の版の窓が前に出るだけになる（update::stale_windows）。
+fn supersede(p: &Paths, me: &Path) {
+    for pid in update::stale_windows(p, me, std::process::id(), &proc::running(&brand().exe)) {
+        let ended = proc::terminate(pid) && proc::wait_gone(pid, Duration::from_secs(5));
+        log(&format!("START 前の版の窓（pid {pid}）{}", if ended { "を終わらせ、この版で開きます" } else { "を終わらせられません" }));
+    }
+}
+
 /// 入口（この PC の app の exe）で開き直して、この窓を閉じる。入口はこの窓が終わるのを待ってから、版ごとの写しへ渡す。
 pub fn relaunch(app: &AppHandle, ctx: &Ctx) -> Result<(), String> {
     if !ctx.installed {
@@ -471,6 +480,9 @@ fn main() {
     // 動いている版: この PC のアプリなら名乗り（app\app.json）、ほかはこの exe の版
     let current =
         if installed { update::dist_version(&paths.app()).unwrap_or_else(|| version().to_string()) } else { version().to_string() };
+    if installed {
+        supersede(&paths, &me);
+    }
     let store = Store::new(&paths.state(), &locate::default_output());
     if let Some(from) = store.import_legacy(&locate::legacy_states()) {
         log(&format!("START 前の形の設定と登録した印を引き継ぎました（{}）", from.display()));

@@ -464,11 +464,14 @@ pub fn running_installed(p: &Paths, me: &Path, exe: &str) -> bool {
     p.app().join(exe).is_file() && (inside(me, &p.desktop()) || same(me, &p.app().join(exe)))
 }
 
-/// 版ごとの写しの置き場（exe の大きさ＋更新時刻。中身が変われば別の場所）。
+/// 版ごとの写しの置き場（名乗りの版＋exe の大きさ＋更新時刻。版か中身が変われば別の場所）。
+/// 版を名前に入れる: Windows の写しは更新時刻を保つので、同じ exe を別の版として配ると大きさと時刻だけでは同じ場所になり、
+/// 前の版の窓を「同じ写し」と見なして代われない（verify.py の筋書き 7 が Windows で落ちた）。
 pub fn copy_for_run(p: &Paths, app_exe: &Path) -> Result<PathBuf, String> {
     let m = std::fs::metadata(app_exe).map_err(|e| format!("{} を読めません: {e}", app_exe.display()))?;
     let t = m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
-    let dir = p.desktop().join(format!("{}-{t}", m.len()));
+    let v = app_exe.parent().and_then(dist_version).unwrap_or_else(|| "0.0.0".into());
+    let dir = p.desktop().join(format!("{v}-{}-{t}", m.len()));
     let dest = dir.join(app_exe.file_name().unwrap_or_default());
     if dest.is_file() && std::fs::metadata(&dest).map(|d| d.len()).ok() == Some(m.len()) {
         return Ok(dest);
@@ -479,6 +482,18 @@ pub fn copy_for_run(p: &Paths, app_exe: &Path) -> Result<PathBuf, String> {
     drop_web_mark(&tmp);
     std::fs::rename(&tmp, &dest).map_err(|e| format!("exe を置けません: {e}"))?;
     Ok(dest)
+}
+
+/// 前の版の窓（終わらせて、いまの版に代わる物）: いまの exe が版ごとの写しなら、ほかの写しから動いている窓（pid）。
+///
+/// 写しは app の exe から作るので、ほかの写しは app が入れ替わる前の物（古い版）。古い窓が常駐したままだと、
+/// 「1 つだけ起動」の仕組みで古い窓が前に出るだけになり、新しい版に移れない（1.0・1.1 の利用者は、止まる版から抜けられなかった）。
+/// 同じ写しの窓（同じ版）は代わらない（いつもどおり、前の窓を前に出す）。
+pub fn stale_windows(p: &Paths, me: &Path, my_pid: u32, running: &[(u32, PathBuf)]) -> Vec<u32> {
+    if !inside(me, &p.desktop()) {
+        return vec![];
+    }
+    running.iter().filter(|(pid, exe)| *pid != my_pid && inside(exe, &p.desktop()) && !same(exe, me)).map(|(pid, _)| *pid).collect()
 }
 
 /// 古い版ごとの写しを片付ける（動いている版は消せないので、消せた物だけ）。
@@ -724,6 +739,17 @@ pub mod tests {
         let copy = copy_for_run(&p, &p.app().join(EXE)).unwrap();
         assert!(copy.starts_with(p.desktop()));
         assert_eq!(copy_for_run(&p, &p.app().join(EXE)).unwrap(), copy, "同じ exe なら写し直さない");
+        // 同じ exe（大きさ・時刻も同じ）を別の版として名乗ったら、別の写し（前の版の窓に代われる）
+        let m = json!({"app_id": ID, "name": "App", "exe": EXE, "version": "1.9.1"});
+        std::fs::write(p.app().join(MANIFEST), serde_json::to_vec(&m).unwrap()).unwrap();
+        let newer = copy_for_run(&p, &p.app().join(EXE)).unwrap();
+        assert!(newer != copy && newer.starts_with(p.desktop()), "版が違えば別の写し: {newer:?}");
+        assert_eq!(stale_windows(&p, &newer, 2, &[(1, copy.clone()), (2, newer.clone())]), vec![1], "前の版の写しの窓に代わる");
+        std::fs::write(
+            p.app().join(MANIFEST),
+            serde_json::to_vec(&json!({"app_id": ID, "name": "App", "exe": EXE, "version": "1.9.0"})).unwrap(),
+        )
+        .unwrap();
         assert_eq!(plan(&p, &copy, EXE, ID, false), Step::Stay, "版ごとの写しは窓として動く");
         assert!(running_installed(&p, &copy, EXE) && !running_installed(&p, &d.join("share").join(EXE), EXE));
         assert_eq!(plan(&p, &d.join("share").join(EXE), EXE, ID, true), Step::Stay, "開発は引き継がない");
@@ -732,5 +758,22 @@ pub mod tests {
         cleanup_copies(&p, &copy);
         assert!(copy.is_file() && !p.desktop().join("old-1").exists(), "古い写しは片付け、動いている写しは残す");
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_newer_copy_replaces_windows_of_other_copies_only() {
+        let d = tmp("stale");
+        let p = Paths::new(&d);
+        let copy = |n: &str| {
+            let f = p.desktop().join(n).join(EXE);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(&f, n).unwrap();
+            f
+        };
+        let (old, new, other) = (copy("100-1"), copy("200-2"), d.join("elsewhere").join(EXE));
+        let running = vec![(10, old.clone()), (20, new.clone()), (21, new.clone()), (30, other.clone())];
+        assert_eq!(stale_windows(&p, &new, 20, &running), vec![10], "ほかの写し（古い版）の窓だけ。同じ写し・写しの外の物は残す");
+        assert!(stale_windows(&p, &other, 30, &running).is_empty(), "写しでない exe（開発・写していない形）は何も終わらせない");
+        assert!(stale_windows(&p, &old, 10, &[(10, old.clone())]).is_empty(), "自分は数えない");
     }
 }

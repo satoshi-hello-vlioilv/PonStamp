@@ -1,12 +1,13 @@
 :root {
+  --zoom: 1;   /* 画面の文字の大きさ（zoom.js が入れる。窓の大きさ 100vh で決める所はこれで割る） */
   --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e2e5ea;
   --chip: #eff1f4; --accent: #c8323a; --focus: #2f6feb; --ck1: #e9ecf0; --ck2: #ffffff;
-  --radius: 12px; --rail: 232px; color-scheme: light dark;
+  --radius: 12px; --rail: 232px; --chip-line: #c9ced6; color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #15171c; --panel: #1f2229; --text: #e8eaef; --muted: #9aa3b2; --line: #323640;
-    --chip: #2a2e37; --accent: #dc4a52; --focus: #6ea0ff; --ck1: #2a2e37; --ck2: #22252c;
+    --chip: #2a2e37; --accent: #dc4a52; --focus: #6ea0ff; --ck1: #2a2e37; --ck2: #22252c; --chip-line: #4a5060;
   }
 }
 * { box-sizing: border-box; }
@@ -20,6 +21,20 @@ body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex
 .top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px;
   background: var(--panel); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
+/* 版の札（名前のすぐ隣。押すと更新履歴）・見出しの右（画面の文字・設定） */
+.verchip { display: inline-flex; align-items: center; gap: 8px; height: 30px; margin-left: 2px; padding: 0 12px; border: 1px solid var(--chip-line); border-radius: 999px;
+  background: var(--panel); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.verchip b { font-weight: 700; } .verchip span { color: var(--focus); font-weight: 400; }
+.verchip:hover { border-color: var(--muted); }
+.top .tools { display: flex; align-items: center; gap: 12px; }
+.zoom { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.zoom .zl { margin-right: 4px; font-size: 13px; }
+.zoom .zb { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text);
+  font: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.zoom .zb:hover:not(:disabled) { border-color: var(--muted); } .zoom .zb:disabled, .zoom .zb.capped { opacity: .4; cursor: default; }
+.zoom .zv { min-width: 50px; height: 30px; border: 0; border-radius: 7px; background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums; cursor: pointer; }
+.zoom .zv:hover { background: var(--chip); }
 .logo { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
   border: 2.5px solid var(--accent); color: var(--accent); font-size: 13px; font-weight: 700; }
 .shell { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--rail) 1fr; }
@@ -77,10 +92,10 @@ input:disabled { opacity: .5; }
 .nowrap { white-space: nowrap; }
 .row .lbl { margin: 0; }
 
-.swatches { display: flex; gap: 7px; align-items: center; flex-wrap: nowrap; }
-.swatches button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--panel); cursor: pointer; box-shadow: 0 0 0 1px var(--line); }
+.swatches { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.swatches button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--panel); cursor: pointer; box-shadow: 0 0 0 1px var(--line); }
 .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text); }
-.field label.pick-other { display: inline-flex; align-items: center; gap: 6px; height: 34px; margin: 0; padding: 0 12px 0 4px; border: 1px solid var(--line); border-radius: 999px;
+.field label.pick-other { display: inline-flex; align-items: center; gap: 6px; height: 34px; margin: 0; padding: 0 10px 0 4px; border: 1px solid var(--line); border-radius: 999px;
   font-size: 13px; line-height: 1; color: var(--text); white-space: nowrap; cursor: pointer; }
 .field label.pick-other[aria-pressed="true"] { border-color: var(--text); font-weight: 700; }
 .pick-other input[type=color] { display: block; margin: 0; width: 26px; height: 26px; border: 0; padding: 0; border-radius: 50%; overflow: hidden; background: none; cursor: pointer; }
@@ -92,9 +107,9 @@ input:disabled { opacity: .5; }
 .pills button[aria-pressed="true"] { background: var(--panel); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .pills.small button { height: 26px; font-size: 12px; color: var(--muted); }
 .pills.small button[aria-pressed="true"] { color: var(--text); }
-/* スライダー（字の大きさ・大きさ・枠・字の太さ・かすれ・傾き）は 1 つの形: 名前 ｜ 帯 ｜ 値 の 1 行。大きさは帯の下によく使う大きさの目盛り。
-   列の幅は 1 か所（--cols）。書体と風合いの箱の中は、箱の内側の余白（13px）を引いて、外の帯と左右をそろえる */
-.panel { --cols: 72px 1fr 68px; }
+/* スライダー（印の字の大きさ・大きさ・枠・字の太さ・かすれ・傾き）は 1 つの形: 名前 ｜ 帯 ｜ 値 の 1 行。大きさは帯の下によく使う大きさの目盛り。
+   列の幅は 1 か所（--lbl・--cols。名前の列は「印の字の大きさ」が 1 行に入る幅）。書体と風合いの箱の中は、箱の内側の余白（13px）を引いて、外の帯と左右をそろえる */
+.panel { --lbl: 96px; --cols: var(--lbl) 1fr 68px; }
 .field.slider { --thumb: 18px; display: grid; grid-template-columns: var(--cols); grid-template-areas: "l b v" ". t ."; align-items: center; column-gap: 8px; }
 .field.slider .lblrow { display: contents; }
 .field.slider label { grid-area: l; margin: 0; font-size: 13px; color: var(--text); }
@@ -105,7 +120,7 @@ input:disabled { opacity: .5; }
   -moz-appearance: textfield; }
 .val input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 /* 名前が左の 1 行（色）: スライダーと同じ名前の列 */
-.field.line { display: grid; grid-template-columns: 72px 1fr; align-items: center; column-gap: 8px; }
+.field.line { display: grid; grid-template-columns: var(--lbl) 1fr; align-items: center; column-gap: 8px; }
 .field.line > .lbl { margin: 0; font-size: 13px; color: var(--text); }
 .ticks { position: relative; height: 26px; margin: 2px calc(var(--thumb) / 2) 0; }
 .ticks button { position: absolute; left: calc(var(--at) * 100%); transform: translateX(-50%); top: 0; height: 24px; padding: 0 6px; border: 0; border-radius: 5px; background: none;
@@ -123,8 +138,8 @@ input:disabled { opacity: .5; }
 #dateSeps button { min-width: 30px; padding: 0 9px; }
 
 /* ---------------------------------------------------------------- 印とコピー */
-.stage { width: min(100%, 640px, calc(100vh - 340px)); aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 14px; }
-body:has(.notices:not([hidden])) .stage { width: min(100%, 640px, calc(100vh - 410px)); }
+.stage { width: min(100%, 640px, calc(100vh / var(--zoom) - 340px)); aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 14px; }
+body:has(.notices:not([hidden])) .stage { width: min(100%, 640px, calc(100vh / var(--zoom) - 410px)); }
 .stage.checker { background: repeating-conic-gradient(var(--ck1) 0 25%, var(--ck2) 0 50%) 0 0 / 20px 20px; }
 .stage.paper { background: #fff; }
 .stage canvas { width: 84%; height: 84%; }
@@ -132,6 +147,9 @@ body:has(.notices:not([hidden])) .stage { width: min(100%, 640px, calc(100vh - 4
 .bgrow { display: flex; align-items: center; gap: 8px; }
 .bgrow .lbl, .bgrow .hint { margin: 0; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+/* 狭い列（1280 の窓で画面の文字を大きくした所など）: 主のボタンの最小の幅を外して 1 段に保つ */
+.preview { container-type: inline-size; }
+@container (max-width: 560px) { .actions { flex-wrap: nowrap; } .actions .btn { padding: 10px 12px; } .actions .btn.primary { min-width: 0; } }
 
 .btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; padding: 10px 16px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
 .btn:hover { border-color: var(--muted); }
@@ -232,6 +250,8 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
 .dist-entry .hint { margin: 4px 0 0; }
 .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--ok); color: var(--panel); font-size: 11px; font-weight: 700; }
 
+#dlgHistory { width: min(640px, calc(100vw / var(--zoom) - 48px)); }
 .history { padding: 8px 18px 18px; }
+.history h2 .now { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 2px; }
 .history h2 { font-size: 14px; margin: 12px 0 4px; } .history h2 small { margin-left: 8px; color: var(--muted); font-weight: 400; }
 .history ul { margin: 0; padding-left: 20px; }

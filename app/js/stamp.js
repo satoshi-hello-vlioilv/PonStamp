@@ -41,6 +41,8 @@ export const DATE_FORMATS = [
   { v: 'r', note: '令和（R）' }, { v: 'rk', note: '令和（漢字）' }, { v: 'rn', note: '令和・数字だけ' },
 ];
 export const DATE_SEPS = [{ v: '.', label: '.' }, { v: '/', label: '/' }, { v: '-', label: '-' }, { v: 'kanji', label: '年月日' }];
+/** 解像度（dpi）の選択肢（1 か所の定義。設定の画面が並べ、merge がこの外の値を既定に直す。窓の Rust は 72〜4800 だけを受ける） */
+export const DPIS = [{ v: 300, note: '軽い' }, { v: 600, note: '標準' }, { v: 1200, note: '高精細' }];
 export const DEFAULTS = {
   type: 'mitome', name: '山田', dept: '総務課', dateAuto: true, date: '', dateFmt: 'y2', dateSep: '.', pad: false,
   square: '株式会社見本之印', sqCols: 'auto', color: '#d6343a', font: '',
@@ -60,6 +62,8 @@ export function merge(base, add) {
     }
   }
   if (!TYPES[o.type]) o.type = 'mitome';
+  // 前の形から引き継いだ覚えなどに選択肢の外の解像度があると、窓が「解像度（dpi）の値が違います」で断る。既定に直す
+  if (!DPIS.some(d => d.v === o.dpi)) o.dpi = base.dpi;
   return o;
 }
 export const clamp = (v, a, b) => Math.min(b, Math.max(a, v));

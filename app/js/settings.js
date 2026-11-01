@@ -2,8 +2,10 @@
 // 画面のどこに置いても動くよう、渡された箱の中に自分で組み立てる。外（Rust・ブラウザ）とは backend.js だけで話す。
 
 import { bytes, fill, h, when } from './dom.js';
+import { DPIS } from './stamp.js';
 
-const DPIS = [[300, '軽い'], [600, '標準'], [1200, '高精細']];
+/** 版の見せ方（どこでも同じ言葉: ver 1.3.0）。版が無ければ — */
+export const verText = (v) => (v ? `ver ${v}` : '—');
 
 /** 版を数で比べる（1.10.0 は 1.9.0 より新しい）。a が古ければ負 */
 export function compareVersions(a, b) {
@@ -15,8 +17,8 @@ export function compareVersions(a, b) {
 /** 更新の状態 → { tone, text }（tone: ok・info・warn・busy・off。色だけでなく言葉と印でも分かるように） */
 export function updateLine(u) {
   const st = u?.state || 'off';
-  if (st === 'ready') return { tone: 'info', mark: '↑', text: `新しい版 ${u.ready} を取り込みました。開き直すと入れ替わります` };
-  if (st === 'latest') return { tone: 'ok', mark: '✓', text: u.detail || `いまの版 ${u.current} が最新です` };
+  if (st === 'ready') return { tone: 'info', mark: '↑', text: `${verText(u.ready)} を取り込みました。開き直すと新しい版になります` };
+  if (st === 'latest') return { tone: 'ok', mark: '✓', text: u.detail || `いまの版 ${verText(u.current)} が最新です` };
   if (st === 'checking' || st === 'idle') return { tone: 'busy', mark: '…', text: '置き場を確かめています…' };
   if (st === 'staging') return { tone: 'busy', mark: '…', text: `新しい版 ${u.detail} を取り込んでいます…` };
   if (st === 'error') return { tone: 'warn', mark: '!', text: u.problem || '確かめられませんでした' };
@@ -60,7 +62,7 @@ export function createSettings(root, deps) {
       if (dir) { path.value = dir; await save(); }
     };
     const dpi = h('div', { class: 'seg small', role: 'group', 'aria-label': '解像度' },
-      DPIS.map(([v, note]) => h('button', { type: 'button', 'aria-pressed': String(deps.getDpi() === v), onclick: () => { deps.setDpi(v); render(); } },
+      DPIS.map(({ v, note }) => h('button', { type: 'button', 'aria-pressed': String(deps.getDpi() === v), onclick: () => { deps.setDpi(v); render(); } },
         `${v} dpi`, h('small', {}, note))));
     return sec('out', '保存とコピー',
       row('PNG の保存先', h('div', { class: 'row' }, path, btn('参照…', pick), btn('開く', () => act(() => backend.openFolder())))),
@@ -110,7 +112,7 @@ export function createSettings(root, deps) {
     return sec('update', '更新',
       h('div', { class: `status ${line.tone}`, role: 'status' }, h('b', { 'aria-hidden': 'true' }, line.mark), h('span', {}, line.text),
         u.state === 'ready' ? btn('開き直して更新する', () => act(() => backend.updateApply()), 'btn small primary') : null),
-      row('いまの版', h('span', {}, `${st.info?.version || '—'}`), u.checkedAt ? h('span', { class: 'hint' }, `確かめた時刻 ${u.checkedAt}`) : null,
+      row('いまの版', h('span', {}, verText(st.info?.version)), u.checkedAt ? h('span', { class: 'hint' }, `確かめた時刻 ${u.checkedAt}`) : null,
         st.info?.installed ? btn('今すぐ確かめる', () => act(() => backend.updateCheck(), '確かめています')) : null),
       row('更新の置き場', h('div', { class: 'row' }, src, btn('確かめる', probe), btn('保存', saveSrc)), probeOut,
         h('p', { class: 'hint' }, '共有フォルダや BOX の、版を置くフォルダ。起動したとき・30 分ごとに確かめ、新しい版を裏で取り込みます。'
@@ -202,7 +204,7 @@ export function createSettings(root, deps) {
         item(0, `${r.found}${sep}`, r.adjusted ? '更新の置き場（この PC での見え方で探した）' : '更新の置き場（「更新」で決める）'),
         item(1, `${tail(r.appFolder) || n.app || 'PonStamp'}${sep}`, 'アプリのフォルダ'),
         item(2, `${entryName}・app.json`, '配る入口（新しい PC へ渡す）', { missing: !r.entry?.exists }),
-        item(2, 'distribute.json', dist ? `配る版の覚え（${dist}）` : '配る版の覚え（配ると作る）', { missing: !dist }),
+        item(2, 'distribute.json', dist ? `配る版の覚え（${verText(dist)}）` : '配る版の覚え（配ると作る）', { missing: !dist }),
         item(2, `${tail(r.versionsFolder) || n.versions || 'versions'}${sep}`, '版を置くフォルダ', { missing: !ins.length }),
         ins.length ? ins.map((v) => verItem(3, v)) : item(3, `<版>${sep}`, 'まだ無い（最初に版を置くと作る）', { missing: true }),
         old.map((v) => verItem(2, v, '前の形（1.1 まで）'))));
@@ -226,7 +228,7 @@ export function createSettings(root, deps) {
   function about() {
     const i = st.info || {};
     return sec('about', 'このアプリについて',
-      row('版', h('span', {}, i.version || '—'), btn('更新履歴', () => deps.openHistory?.())),
+      row('版', h('span', {}, verText(i.version)), btn('更新履歴', () => deps.openHistory?.())),
       i.installed ? row('作業場所', h('code', {}, i.root || '')) : row('動き方', h('span', { class: 'hint' }, i.shell === 'browser' ? 'ブラウザで試しています（保存はダウンロード）' : 'この PC へ写さずに動いています')));
   }
 
@@ -258,7 +260,7 @@ export function createNotices(root, deps) {
   function render() {
     const u = st.update || {};
     fill(root,
-      u.state === 'ready' ? note('update', 'info', '↑', `新しい版 ${u.ready} があります。開き直すと入れ替わります（いまの作業はそのまま覚えています）。`,
+      u.state === 'ready' ? note('update', 'info', '↑', `新しい版 ${verText(u.ready)} があります。開き直すと入れ替わります（いまの作業はそのまま覚えています）。`,
         btn('開き直して更新する', () => backend.updateApply().catch((e) => toast(e.message, true)), 'btn small primary'),
         btn('あとで', () => { hidden.add('update'); render(); }, 'btn small quiet')) : null,
       st.shortcut?.ask ? note('shortcut', 'info', '★', 'デスクトップとスタートに PonStamp のショートカットを作りますか？',
@@ -283,12 +285,10 @@ export function createNotices(root, deps) {
   };
 }
 
-/** 更新履歴（app/version.json）を読む */
-export async function loadHistory() {
-  try {
-    const r = await fetch('version.json');
-    return (await r.json()).changelog || [];
-  } catch {
-    return [];
-  }
+/** 版と更新履歴（app/version.json。exe に入っている）を読む → { version, changelog }。1 回だけ読む */
+let versionFile = null;
+export function loadVersion() {
+  versionFile ??= fetch('version.json').then((r) => r.json()).then((j) => ({ version: j.version || '', changelog: j.changelog || [] }))
+    .catch(() => ({ version: '', changelog: [] }));
+  return versionFile;
 }

@@ -11,6 +11,8 @@
   4. 閉じている間に起動できない版（+3）を置く → +3 に入れ替わるが画面が出ない。次に開くと控え（+2）へ戻り、+3 には印が付く（もう取り込まない）
   5. 配る版を前の版（+1）に戻す（distribute.json と配る入口）→ 1 回開くだけで配る版になり、配る版を作業場所に覚える（want.json）
   6. 新しい PC（まっさらな作業場所）が配る入口を開くだけで、配る版をこの PC へ入れて開き、入口の置き場を更新の置き場にする
+  7. 古い版が常駐している間に、新しい版の exe（展開した ZIP）を開く → 古い窓は終わり、新しい版で開く
+     （1 つだけ起動の仕組みで古い窓が前に出るだけだと、直した版に移れない。1.0・1.1 の利用者はこれで、止まる版から抜けられなかった）
   あわせて: 共有の配る形は 1 ファイルも変わらない・終わったあと窓が残らない。
 """
 from __future__ import annotations
@@ -112,6 +114,18 @@ class Run:
             return None
         return json.loads(out.read_text(encoding="utf-8"))
 
+    def start_resident(self, exe: Path, root: Path, wait: int = 60) -> list[str]:
+        """exe を常駐の形（窓を出さない・自己診断なし）で起こし、版ごとの写しの窓が動き出すまで待つ。→ 動いている写し（pid exe）"""
+        subprocess.Popen([str(exe), "--tray"], cwd=str(exe.parent), env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        end = time.time() + wait
+        while time.time() < end:
+            running = [x for x in leftovers(self.work) if os.path.normcase(str(root / "desktop")) in os.path.normcase(x)]
+            if running:
+                time.sleep(3)    # 窓が「1 つだけ起動」の受け口を開くまで
+                return running
+            time.sleep(0.5)
+        return []
+
 
 class Checks:
     def __init__(self):
@@ -131,20 +145,39 @@ def shell(r: dict | None) -> dict:
     return (r or {}).get("shell") or {}
 
 
-def leftovers(work: Path) -> list[str]:
-    """作業フォルダの下の exe がまだ動いているか（Linux は /proc、Windows は tasklist で名前だけ）。"""
+def processes() -> list[tuple[int, str]]:
+    """動いているこのアプリの exe（pid, exe の場所）。Linux は /proc、Windows は Win32_Process。"""
     if WINDOWS:
-        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {bundle.brand()['exe']}", "/FO", "CSV", "/NH"], capture_output=True, text=True, check=False).stdout
-        return [line for line in out.splitlines() if bundle.brand()["exe"] in line]
+        ps = (f"Get-CimInstance Win32_Process -Filter \"Name='{bundle.brand()['exe']}'\" | "
+              "ForEach-Object { \"$($_.ProcessId) $($_.ExecutablePath)\" }")
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, check=False).stdout
+        rows = [line.strip().split(" ", 1) for line in out.splitlines() if line.strip()]
+        return [(int(r[0]), r[1] if len(r) > 1 else "") for r in rows if r[0].isdigit()]
     found = []
     for pid in filter(str.isdigit, os.listdir("/proc")):
         try:
-            exe = os.readlink(f"/proc/{pid}/exe")
+            found.append((int(pid), os.readlink(f"/proc/{pid}/exe")))
         except OSError:
             continue
-        if exe.startswith(str(work)):
-            found.append(f"{pid} {exe}")
     return found
+
+
+def leftovers(work: Path) -> list[str]:
+    """作業フォルダの下の exe がまだ動いているか（"pid exe の場所"）。"""
+    return [f"{pid} {exe}" for pid, exe in processes() if os.path.normcase(exe).startswith(os.path.normcase(str(work)))]
+
+
+def kill(rows: list[str]) -> None:
+    """残った窓を終わらせる（確かめが失敗したときの片付け。次の確かめに残さない）。"""
+    for row in rows:
+        pid = int(row.split()[0])
+        if WINDOWS:
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, check=False)
+        else:
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
 
 
 def run(exe: Path, work: Path) -> bool:
@@ -206,6 +239,18 @@ def run(exe: Path, work: Path) -> bool:
     s = shell(r2.open(entry, "entry"))
     check("6 新しい PC が配る入口から配る版を入れて開く", s.get("installed") and s.get("version") == bump(v, 1), s)
     check("6 入口の置き場を更新の置き場にする", str(entry.parent) in str(s.get("source")), s.get("source"))
+
+    # 7. 古い版が常駐している間に、新しい版の exe を開く
+    root3 = work / "root-resident"
+    r3 = Run(work, root3)
+    old_running = r3.start_resident(share / b["exe"], root3)
+    check("7 古い版が常駐している", old_running, old_running)
+    newer = bundle.stage(exe, work / "unzipped" / b["name"], bump(v, 4))
+    s = shell(r3.open(newer / b["exe"], "supersede"))
+    check("7 新しい版の exe を開くと、新しい版で開く（古い窓が前に出るだけにならない）", s.get("version") == bump(v, 4), s.get("version"))
+    still = [x for x in leftovers(work) if any(x.split()[0] == o.split()[0] for o in old_running)]
+    check("7 古い版の窓は終わる", not still, still)
+    kill(still)
 
     check("共有の配る形は 1 ファイルも変わらない", tree_digest(share) == share_digest)
     time.sleep(2)
