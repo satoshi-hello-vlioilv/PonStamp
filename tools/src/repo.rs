@@ -10,6 +10,20 @@ pub fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("tools/ の上").to_path_buf()
 }
 
+/// 文字のファイルの中身（改行を LF にそろえる）と、元が CRLF だったか。
+/// Windows では Git が改行を CRLF にして取り出すので、行を探す処理は LF にそろえてから行う（前の Python は読むときに自動でそろえていた）。
+pub fn read_text(path: &Path) -> Result<(String, bool), String> {
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("{} を読めません: {e}", path.display()))?;
+    let crlf = raw.contains("\r\n");
+    Ok((if crlf { raw.replace("\r\n", "\n") } else { raw }, crlf))
+}
+
+/// 文字のファイルを書く（LF の text を、crlf なら CRLF に戻して。取り出した形を崩さない）。
+pub fn write_text(path: &Path, text: &str, crlf: bool) -> Result<(), String> {
+    let body = if crlf { text.replace('\n', "\r\n") } else { text.to_string() };
+    std::fs::write(path, body).map_err(|e| format!("{} を書けません: {e}", path.display()))
+}
+
 /// JSON のファイルを読む（読めなければ理由の文）。
 pub fn read_json(path: &Path) -> Result<Value, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{} を読めません: {e}", path.display()))?;

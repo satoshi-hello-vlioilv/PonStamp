@@ -36,7 +36,8 @@ fn windows_imp(text: &str) -> Option<&str> {
 /// 作業用クレートを dest に作る
 pub fn make(repo: &Path, dest: &Path) -> Result<(), String> {
     let desktop = repo.join("desktop");
-    let cargo = std::fs::read_to_string(desktop.join("Cargo.toml")).map_err(|e| e.to_string())?;
+    // 改行を LF にそろえてから探す（Windows の取り出しは CRLF）
+    let cargo = crate::repo::read_text(&desktop.join("Cargo.toml"))?.0;
     let dep = windows_dep(&cargo).ok_or("desktop/Cargo.toml に Windows の部品（windows = {…}）が見つかりません")?;
     std::fs::create_dir_all(dest.join("src")).map_err(|e| e.to_string())?;
     // 作業用クレートは、上にあるワークスペースに入らない（[workspace] を自分で持つ）
@@ -47,7 +48,7 @@ pub fn make(repo: &Path, dest: &Path) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     let mut out = vec!["#![allow(dead_code)]".to_string(), SHIM.to_string()];
     for name in FILES {
-        let text = std::fs::read_to_string(desktop.join("src").join(format!("{name}.rs"))).map_err(|e| e.to_string())?;
+        let text = crate::repo::read_text(&desktop.join("src").join(format!("{name}.rs")))?.0;
         let body = windows_imp(&text).ok_or(format!("desktop/src/{name}.rs に #[cfg(windows)] mod imp が見つかりません"))?;
         let body = body.replacen("#[cfg(windows)]\n", "", 1).replace("use super::*;", "").replace("use ps_core::", "use crate::ps_core::");
         out.push(format!("pub mod {name} {{\n{body}\n}}"));
@@ -78,8 +79,26 @@ mod tests {
         }
         assert!(!lib.contains("#[cfg(windows)]\nmod imp"), "写した所は cfg を外す（Windows 向けにだけ組むので）");
         let cargo = std::fs::read_to_string(dest.join("Cargo.toml")).unwrap();
-        let desktop = std::fs::read_to_string(crate::repo::root().join("desktop/Cargo.toml")).unwrap();
+        let desktop = crate::repo::read_text(&crate::repo::root().join("desktop/Cargo.toml")).unwrap().0;
         assert!(cargo.contains(windows_dep(&desktop).unwrap()), "desktop と同じ windows の版・機能");
         assert!(cargo.contains("[workspace]"));
+    }
+
+    /// Windows の取り出し（改行が CRLF）からも作れる
+    #[test]
+    fn works_on_a_crlf_checkout() {
+        let repo = crate::repo::root();
+        let copy = crate::repo::temp_dir("wincheck-crlf-repo");
+        let files: Vec<String> = std::iter::once("Cargo.toml".to_string()).chain(FILES.iter().map(|n| format!("src/{n}.rs"))).collect();
+        for rel in &files {
+            let dest = copy.join("desktop").join(rel);
+            std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+            std::fs::write(&dest, std::fs::read_to_string(repo.join("desktop").join(rel)).unwrap().replace('\n', "\r\n")).unwrap();
+        }
+        let dest = crate::repo::temp_dir("wincheck-crlf");
+        make(&copy, &dest).unwrap();
+        let lib = std::fs::read_to_string(dest.join("src/lib.rs")).unwrap();
+        assert_eq!(FILES.iter().filter(|n| lib.contains(&format!("pub mod {n} {{"))).count(), FILES.len());
+        assert!(std::fs::read_to_string(dest.join("Cargo.toml")).unwrap().contains("windows = {"));
     }
 }

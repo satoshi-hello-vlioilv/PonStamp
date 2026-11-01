@@ -10,6 +10,7 @@
 //! ```
 //! release は手で書かない。desktop/Cargo.toml・desktop/tauri.conf.json・Cargo.lock の窓の版もこの版にそろえる（--release が書き換える）。
 
+use crate::repo::{read_text, write_text};
 use ps_core::release::parse_version;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -138,23 +139,24 @@ fn without_lock_version(lock: &str) -> String {
 
 /// desktop/Cargo.toml と tauri.conf.json の version をそろえる（Cargo.lock の窓の版も）。
 pub fn sync_build_versions(repo: &Path, version: &str) -> Result<(), String> {
+    // 改行は LF にそろえて探し、元の改行（Windows の取り出しは CRLF）で書き戻す
     let edit = |rel: &str, prefix: &str| -> Result<(), String> {
         let path = repo.join(rel);
-        let text = std::fs::read_to_string(&path).map_err(|e| format!("{rel} を読めません: {e}"))?;
+        let (text, crlf) = read_text(&path)?;
         let (new, n) = replace_first_quoted(&text, prefix, Some(version));
         if n != 1 {
             return Err(format!("{rel} に版の行が見つかりません"));
         }
-        std::fs::write(&path, new).map_err(|e| format!("{rel} を書けません: {e}"))
+        write_text(&path, &new, crlf)
     };
     edit("desktop/Cargo.toml", "version = ")?;
     edit("desktop/tauri.conf.json", "  \"version\": ")?;
     let lock = repo.join("Cargo.lock");
-    if let Ok(text) = std::fs::read_to_string(&lock) {
+    if let Ok((text, crlf)) = read_text(&lock) {
         if let Some(i) = text.find(LOCK_PACKAGE) {
             let start = i + LOCK_PACKAGE.len();
             let end = text[start..].find('\n').map(|e| start + e).unwrap_or(text.len());
-            std::fs::write(&lock, format!("{}\"{version}\"{}", &text[..start], &text[end..])).map_err(|e| e.to_string())?;
+            write_text(&lock, &format!("{}\"{version}\"{}", &text[..start], &text[end..]), crlf)?;
         }
     }
     Ok(())
@@ -189,11 +191,11 @@ pub fn record_release(repo: &Path, amend: bool) -> Result<String, String> {
         return Err(format!("版 {cur} が、記録済みの {rec_version} より古くなっています。"));
     }
     // 書式（1 行の release）を保つため、文字として置き換える
-    let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let (text, crlf) = read_text(&path)?;
     let start = text.find("\"release\": {").ok_or("app/version.json に release の行が見つかりません。")?;
     let end = text[start..].find('}').map(|e| start + e + 1).ok_or("app/version.json の release が閉じていません。")?;
     let new = format!("{}\"release\": {{\"version\": \"{cur}\", \"digest\": \"{digest}\"}}{}", &text[..start], &text[end..]);
-    std::fs::write(&path, new).map_err(|e| e.to_string())?;
+    write_text(&path, &new, crlf)?;
     Ok(format!("記録しました: {cur}・{digest}"))
 }
 
@@ -276,7 +278,7 @@ mod tests {
     fn build_files_carry_the_same_version() {
         let repo = root();
         let v = crate::repo::app_version(&repo).unwrap();
-        let cargo = std::fs::read_to_string(repo.join("desktop/Cargo.toml")).unwrap();
+        let cargo = read_text(&repo.join("desktop/Cargo.toml")).unwrap().0;
         let cargo_v = cargo.lines().find_map(|l| l.strip_prefix("version = \"").and_then(|r| r.strip_suffix('"'))).unwrap();
         let conf = crate::repo::read_json(&repo.join("desktop/tauri.conf.json")).unwrap();
         assert_eq!(
@@ -284,7 +286,7 @@ mod tests {
             (v.as_str(), v.as_str()),
             "desktop/Cargo.toml と tauri.conf.json の version を app/version.json にそろえる（--release がそろえる）"
         );
-        let lock = std::fs::read_to_string(repo.join("Cargo.lock")).unwrap();
+        let lock = read_text(&repo.join("Cargo.lock")).unwrap().0;
         assert!(lock.contains(&format!("{LOCK_PACKAGE}\"{v}\"")), "Cargo.lock の窓の版も同じ");
     }
 
@@ -308,6 +310,36 @@ mod tests {
         assert_eq!(release_digest(&copy), before);
         std::fs::write(&main, format!("{}// x", std::fs::read_to_string(&main).unwrap())).unwrap();
         assert_ne!(release_digest(&copy), before, "中身が変われば要約も変わる");
+    }
+
+    /// Windows の取り出し（Git が改行を CRLF にする）でも、版をそろえられ・CRLF のまま保ち・要約は LF の取り出しと同じ
+    #[test]
+    fn versions_sync_and_digest_on_a_crlf_checkout() {
+        let repo = root();
+        let (lf, crlf) = (temp_dir("release-lf"), temp_dir("release-crlf"));
+        for (rel, p) in release_files(&repo) {
+            for (dir, to_crlf) in [(&lf, false), (&crlf, true)] {
+                let dest = dir.join(&rel);
+                std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+                let body = std::fs::read(&p).unwrap();
+                let text = String::from_utf8(body.clone());
+                match text {
+                    Ok(t) if to_crlf => std::fs::write(&dest, t.replace('\n', "\r\n")).unwrap(),
+                    _ => std::fs::write(&dest, body).unwrap(),
+                }
+            }
+        }
+        assert_eq!(release_digest(&crlf), release_digest(&lf), "改行の違いで要約は変わらない");
+        sync_build_versions(&crlf, "99.0.0").unwrap();
+        let read = |rel: &str| std::fs::read_to_string(crlf.join(rel)).unwrap();
+        assert!(read("desktop/Cargo.toml").contains("version = \"99.0.0\"\r\n"), "Cargo.toml の版（CRLF のまま）");
+        assert!(read("desktop/tauri.conf.json").contains("\"version\": \"99.0.0\""));
+        assert!(
+            read("Cargo.lock").contains("name = \"ponstamp-desktop\"\r\nversion = \"99.0.0\"\r\n"),
+            "Cargo.lock の窓の版（CRLF のまま）"
+        );
+        assert!(!read("Cargo.lock").replace("\r\n", "").contains('\n'), "LF だけの行を混ぜない");
+        assert_eq!(release_digest(&crlf), release_digest(&lf), "版をそろえても要約は変わらない");
     }
 
     #[test]
