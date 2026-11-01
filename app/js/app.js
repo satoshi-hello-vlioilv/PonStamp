@@ -2,6 +2,8 @@ import { backend } from './backend.js';
 import { fill, h } from './dom.js';
 import { createNotices, createSettings, loadVersion, verText } from './settings.js';
 import { createZoom } from './zoom.js';
+import * as P from './presets.js';
+import { RULER_MM, drawRuler } from './ruler.js';
 import { ADV_DEFAULTS, COLORS, DATE_FORMATS, DATE_SEPS, DEFAULTS, FONT_CANDIDATES, TEXT_SIZE, TYPES, clamp, clone, dateText, exportPx, merge, render, stampDate, todayISO } from './stamp.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -23,13 +25,17 @@ const pngBytes = cv => new Promise((res, rej) => cv.toBlob(b => (b ? b.arrayBuff
 
 /* ================================================================ UI */
 let toastTimer = 0;
-function toast(msg, err = false) {
-  const el = $('#toast');
-  el.textContent = msg;
+/** 右下の知らせ。action = { label, run } を渡すと押せるボタンを付け、長めに出す（「元に戻す」など） */
+function toast(msg, err = false, action = null) {
+  const el = $('#toast'), act = $('#toastAct');
+  $('#toastText').textContent = msg;
+  act.hidden = !action;
+  act.textContent = action?.label || '';
+  act.onclick = action ? () => { el.classList.remove('show'); action.run(); } : null;
   el.classList.toggle('err', err);
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), err ? 5000 : 2600);
+  toastTimer = setTimeout(() => el.classList.remove('show'), action ? 8000 : err ? 5000 : 2600);
 }
 
 function fontAvailable(name) {
@@ -150,8 +156,13 @@ function draw() {
 }
 
 let raf = 0;
+let railKey = '';
 function update() {
   syncUI();
+  // いまの印の行はいつも、札は「呼び出した印・変えたか」が変わったときだけ描き直す（入力のたびに見本を描き直さない）
+  const key = `${loaded}:${isChanged()}`;
+  if (key !== railKey) { railKey = key; renderPresets(); }
+  renderNow();
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(draw);
   scheduleSave();
@@ -187,57 +198,162 @@ async function saveStamp() {
 }
 
 /* ================================================================ よく使う印 */
+// 呼び出した印（番号）と、呼び出した直後の印の控え（変えたかを比べる）。何も呼び出していなければ -1
+let loaded = -1;
+let base = null;
+const isChanged = () => loaded >= 0 && P.changed(base, S);
+const storedS = () => { const s = clone(S); delete s.bg; return s; };
+
 function renderPresets() {
   const bar = $('#presetBar');
   bar.innerHTML = '';
+  const dirty = isChanged();
   presets.forEach((p, i) => {
-    const chip = document.createElement('div');
-    chip.className = 'pchip';
-    const load = document.createElement('button');
-    load.type = 'button'; load.className = 'load'; load.title = `「${p.name}」を呼び出す`;
+    const chip = h('div', { class: `pchip${i === loaded ? ' on' : ''}` });
     const cv = document.createElement('canvas');
     render(cv, merge(DEFAULTS, p.s), 144);   // 見本は 36〜72px の表示を 2 倍の細かさで（広い画面の大きな見本・表示倍率 125〜200% でもぼやけない）
-    load.append(cv, h('span', { class: 'nm' }, p.name));
-    load.addEventListener('click', () => {
-      S = merge(DEFAULTS, { ...p.s, bg: S.bg, dpi: S.dpi });   // 解像度は設定（印ごとではない）
-      if (!fonts.some(([f]) => f === S.font) && fonts.length) S.font = fonts[0][0];
-      update();
-      toast(`「${p.name}」を呼び出しました`);
-    });
-    const del = document.createElement('button');
-    del.type = 'button'; del.className = 'del'; del.textContent = '×';
-    del.setAttribute('aria-label', `「${p.name}」を削除`); del.title = '削除';
-    del.addEventListener('click', async () => {
-      if (!confirm(`「${p.name}」を削除しますか？`)) return;
-      presets.splice(i, 1);
-      renderPresets();
-      try { await backend.savePresets(presets); } catch (e) { toast(e.message, true); }
-    });
-    chip.append(load, del);
+    const load = h('button', { type: 'button', class: 'load', title: `「${p.name}」を呼び出す` }, cv, h('span', { class: 'nm' }, p.name),
+      i === loaded && dirty ? h('small', { class: 'reg-form' }, '登録した形') : null);
+    load.addEventListener('click', () => loadPreset(i));
+    const n = i < P.SHORTCUT_COUNT ? i + 1 : 0;
+    const cp = h('button', { type: 'button', class: 'cp', title: n ? `登録した形でコピー（Ctrl+${n}）` : '登録した形でコピー', 'aria-label': `「${p.name}」をコピー` }, 'コピー');
+    cp.addEventListener('click', () => copyPreset(i));
+    const more = h('button', { type: 'button', class: 'more', 'aria-haspopup': 'menu', title: '名前・並べ替え・削除', 'aria-label': `「${p.name}」を直す` }, '直す ▾');
+    more.addEventListener('click', (e) => { e.stopPropagation(); openPresetMenu(i, more); });
+    chip.append(n ? h('span', { class: 'num', 'aria-hidden': 'true' }, String(n)) : null, load, cp, more);
     bar.appendChild(chip);
   });
 }
 
-function openPresetDialog() {
+function loadPreset(i) {
+  const p = presets[i];
+  S = merge(DEFAULTS, { ...p.s, bg: S.bg, dpi: S.dpi });   // 解像度は設定（印ごとではない）
+  if (!fonts.some(([f]) => f === S.font) && fonts.length) S.font = fonts[0][0];
+  loaded = i;
+  base = clone(S);   // 呼び出して整えた後の形を控える（書体の置き換えなどを「変更」と数えない）
+  update();
+  toast(`「${p.name}」を呼び出しました`);
+}
+
+/** 登録した形のままコピー（呼び出していなくても・変えている途中でも、登録した形） */
+async function copyPreset(i) {
+  const r = await copyFor(String(i));
+  if (r.text) toast(r.text, !r.ok);
+}
+
+/** いまの印の行: 何を呼び出し、変えたか。変えたら上書き（上書きはここ 1 か所） */
+function renderNow() {
+  const line = $('#nowLine');
+  const p = presets[loaded];
+  if (!p) { loaded = -1; fill(line, h('span', {}, 'いまの印: 新しい印')); line.classList.remove('on'); return; }
+  const dirty = isChanged();
+  line.classList.add('on');
+  fill(line, h('span', {}, 'いまの印: ', h('b', {}, p.name), dirty ? h('small', { class: 'chg' }, '● 変更あり') : h('small', {}, '（登録したまま）')),
+    dirty ? h('button', { type: 'button', class: 'btn small outline', onclick: overwriteLoaded }, `「${p.name}」に上書き`) : null);
+}
+
+async function savePresets(list, done, undo = null) {
+  presets = list;
+  railKey = `${loaded}:${isChanged()}`;
+  renderPresets();
+  renderNow();
+  try { await backend.savePresets(presets); if (done) toast(done, false, undo); }
+  catch (e) { toast(`登録した印を書けませんでした：${e.message}`, true); }
+}
+
+function overwriteLoaded() {
+  const name = presets[loaded].name;
+  base = clone(S);
+  savePresets(P.overwrite(presets, loaded, storedS()), `「${name}」に上書きしました`);
+}
+
+/** 並びを変えたときに、呼び出した印の番号を追う（同じ印を指し続ける） */
+function follow(before, after) {
+  if (loaded < 0) return;
+  loaded = after.indexOf(before[loaded]);
+  if (loaded < 0) base = null;
+}
+
+function changeList(next, done, undoable) {
+  const before = presets, wasLoaded = loaded, wasBase = base;   // 元に戻すための控え（呼び出しも戻す）
+  follow(before, next);   // 消した印を呼び出していれば、呼び出しは外れる（-1）
+  const undo = undoable ? { label: '元に戻す', run: () => { loaded = wasLoaded; base = wasBase; savePresets(before, '元に戻しました'); } } : null;
+  savePresets(next, done, undo);
+}
+
+/** 「直す ▾」のメニュー: 名前を変える・上へ・下へ・削除（削除はすぐ消し、知らせから元に戻せる） */
+function openPresetMenu(i, anchor) {
+  closePresetMenu();
+  const p = presets[i];
+  const item = (label, run, opts = {}) => h('button', { type: 'button', role: 'menuitem', class: opts.cls || null, disabled: opts.off || null,
+    onclick: () => { closePresetMenu(); run(); } }, label);
+  const menu = h('div', { class: 'pmenu', role: 'menu', id: 'presetMenu', 'aria-label': `「${p.name}」を直す` },
+    item('名前を変える…', () => openPresetDialog(i)),
+    h('hr', {}),
+    item('上へ', () => changeList(P.move(presets, i, -1), null, false), { off: i === 0 }),
+    item('下へ', () => changeList(P.move(presets, i, 1), null, false), { off: i === presets.length - 1 }),
+    h('hr', {}),
+    item('削除', () => changeList(P.remove(presets, i), `「${p.name}」を消しました`, true), { cls: 'danger' }));
+  document.body.appendChild(menu);
+  // 札の右に出す（窓の外にはみ出すなら左・上へ寄せる）。zoom の中なので CSS の px に直す
+  const z = zoom.value / 100, r = anchor.getBoundingClientRect(), m = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(r.right, innerWidth - m.width * z - 8) / z)}px`;
+  menu.style.top = `${Math.max(8, Math.min(r.bottom, innerHeight - m.height * z - 8) / z)}px`;
+  menu.querySelector('button:not([disabled])')?.focus();
+}
+function closePresetMenu() { $('#presetMenu')?.remove(); }
+document.addEventListener('click', (e) => { if (!e.target.closest('#presetMenu')) closePresetMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePresetMenu(); });
+
+/** 登録の窓（i を渡すと、その印の名前を変える窓） */
+let renaming = -1;
+function openPresetDialog(i = -1) {
   const dlg = $('#dlgPreset');
   const inp = $('#inPresetName');
-  inp.value = S.type === 'square' ? S.square.slice(0, 8) : `${TYPES[S.type].label} ${S.name}`.slice(0, 20);
+  renaming = typeof i === 'number' ? i : -1;
+  const isRename = renaming >= 0;
+  $('#lblPresetName').textContent = isRename ? '新しい名前' : '登録名';
+  $('#btnPresetOk').textContent = isRename ? '名前を変える' : '登録';
+  inp.value = isRename ? presets[renaming].name
+    : S.type === 'square' ? S.square.slice(0, 8) : `${TYPES[S.type].label} ${S.name}`.slice(0, P.NAME_MAX);
   dlg.returnValue = '';
   dlg.showModal();
   inp.select();
 }
 
-$('#dlgPreset').addEventListener('close', async () => {
+$('#dlgPreset').addEventListener('close', () => {
   const dlg = $('#dlgPreset');
-  const name = $('#inPresetName').value.trim();
-  if (dlg.returnValue !== 'ok' || !name) return;
-  const s = clone(S); delete s.bg;
-  const idx = presets.findIndex(p => p.name === name);
-  if (idx >= 0) presets[idx] = { name, s }; else presets.push({ name, s });
-  renderPresets();
-  try { await backend.savePresets(presets); toast(`「${name}」を登録しました`); }
-  catch (e) { toast(`登録できませんでした：${e.message}`, true); }
+  if (dlg.returnValue !== 'ok') return;
+  const name = $('#inPresetName').value;
+  try {
+    if (renaming >= 0) {
+      const old = presets[renaming].name;
+      const next = P.rename(presets, renaming, name);
+      if (next[renaming].name !== old) savePresets(next, `「${old}」を「${next[renaming].name}」にしました`);
+    } else {
+      const next = P.add(presets, name, storedS());
+      loaded = next.length - 1;
+      base = clone(S);
+      savePresets(next, `「${next[loaded].name}」を登録しました`);
+    }
+  } catch (e) {
+    toast(e.message, true);
+  }
 });
+
+/* ================================================================ 貼り付けの大きさを確かめる（ものさし） */
+const rulerCanvas = () => drawRuler(document.createElement('canvas'), S.dpi);
+function openCheck() {
+  drawRuler($('#cvRuler'), 300);   // 窓の中の見本（細かさは見え方だけ。コピー・保存はいまの解像度で描き直す）
+  $('#rulerNote').textContent = `いまの解像度（${S.dpi} dpi）で、印と同じ道（コピー・保存）を通します。${RULER_MM} mm でなければ、PNG で保存してファイルから挿入してください。`;
+  $('#dlgCheck').showModal();
+}
+async function copyRuler() {
+  const bytes = await pngBytes(rulerCanvas());
+  const r = await backend.copyPng(bytes, S.dpi);
+  if (!r || r.native === false) await navigator.clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes], { type: 'image/png' }) })]);
+  return r;
+}
 
 /* ================================================================ イベント */
 function bind() {
@@ -281,7 +397,13 @@ function bind() {
   $('#btnCopy').addEventListener('click', copyStamp);
   $('#btnSave').addEventListener('click', saveStamp);
   $('#btnFolder').addEventListener('click', () => backend.openFolder().catch(e => toast(e.message, true)));
-  $('#btnAddPreset').addEventListener('click', openPresetDialog);
+  $('#btnAddPreset').addEventListener('click', () => openPresetDialog());
+  $('#btnCheck').addEventListener('click', openCheck);
+  $('#btnRulerCopy').addEventListener('click', () => copyRuler().then(() => toast(`ものさしをコピーしました。貼った図の幅が ${RULER_MM} mm か見てください`), (e) => toast(`コピーできませんでした：${e.message}`, true)));
+  $('#btnRulerSave').addEventListener('click', async () => {
+    try { const j = await backend.savePng(await pngBytes(rulerCanvas()), `ものさし_${RULER_MM}mm_${S.dpi}dpi`, S.dpi); toast(`保存しました：${j.path}`); }
+    catch (e) { toast(`保存できませんでした：${e.message}`, true); }
+  });
   $('#btnSettings').addEventListener('click', () => $('#dlgSettings').showModal());
   $('#btnVersion').addEventListener('click', openHistory);
   $('#btnZoomOut').addEventListener('click', () => zoom.step(-1));
@@ -293,6 +415,8 @@ function bind() {
     const mod = e.ctrlKey || e.metaKey;
     if (!mod) return;
     const key = e.key.toLowerCase();
+    const at = P.shortcutIndex(e.key, presets.length);   // Ctrl+1〜9: 登録した印を登録した形でコピー
+    if (at >= 0 && !e.altKey && !e.shiftKey) { e.preventDefault(); copyPreset(at); return; }
     if (key === 'enter') { e.preventDefault(); copyStamp(); }
     else if (key === 's') { e.preventDefault(); saveStamp(); }
     else if (key === 'c') {
@@ -427,6 +551,8 @@ window.__ps = {
   /** 画面が使う窓口そのもの（自己診断が、画面と同じ道で保存・コピーを確かめる） */
   backend,
   copyFor,
+  /** ものさしをコピーする（貼り付けの大きさを確かめる。窓の答え {native} を返す） */
+  copyRuler,
   /** 今の設定に s を重ねて px の大きさで描いた canvas（見本帳・評価関数が使う） */
   async drawStamp(s, px, opts) {
     return render(document.createElement('canvas'), merge(DEFAULTS, { ...S, ...s }), px, opts);

@@ -40,16 +40,23 @@
     check('クリップボードへ置ける', navigator.userAgent.includes('Windows') ? c.native === true : c.native === false, JSON.stringify(c));
     // 3b. 本物の「コピー」のボタン: 押すと知らせが「コピーしました」になる（失敗の知らせが出ない）。
     //     Windows だけ（ほかの OS は画面がブラウザの仕組みで置き、それは人が押したときだけ許されるので、スクリプトの押しでは確かめられない）
-    const toast = document.querySelector('#toast');
+    // 知らせの文は #toastText（箱 #toast の中には「元に戻す」のボタンもあるので、箱ごと消さない）
+    const toast = document.querySelector('#toast'), toastText = document.querySelector('#toastText');
     if (navigator.userAgent.includes('Windows')) {
-      toast.textContent = '';
+      toastText.textContent = '';
       document.querySelector('#btnCopy').click();
-      for (let i = 0; i < 50 && !toast.textContent; i++) await wait(100);
-      check('コピーのボタンで、コピーできる', toast.textContent.startsWith('コピーしました') && !toast.classList.contains('err'), toast.textContent);
+      for (let i = 0; i < 50 && !toastText.textContent; i++) await wait(100);
+      check('コピーのボタンで、コピーできる', toastText.textContent.startsWith('コピーしました') && !toast.classList.contains('err'), toastText.textContent);
     }
     // 3c. 通知領域・右クリックのメニューからのコピー（窓の知らせ ps:copy と同じ道）
     const n = await ps.copyFor('last');
     check('メニューからのコピーができる', n.ok, n.text);
+    // 3d. 貼り付けの大きさを確かめるものさし（印と同じ道。Windows は Rust が解像度つきで置く）。
+    //     Windows だけ（ほかの OS は画面がブラウザの仕組みで置き、スクリプトの押しでは許されない: 3b と同じ）
+    if (navigator.userAgent.includes('Windows')) {
+      const r = await ps.copyRuler().catch((e) => ({ error: e.message }));
+      check('ものさしをコピーできる', r?.native === true, JSON.stringify(r));
+    }
 
     // 4. 登録した印を覚え、読み直せる
     const before = await invoke('load');

@@ -28,6 +28,7 @@
 <div class="shell">
   <aside class="rail" aria-label="登録した印">
     <h2 class="rail-h">登録した印</h2>
+    <!-- 札（v5 で決めた C3）: 押すと呼び出す・「コピー」で登録した形をそのままコピー（Ctrl+1〜9）・「直す ▾」で名前・並べ替え・削除 -->
     <nav class="presets" id="presetBar" aria-label="登録した印（押すと呼び出す）"></nav>
     <button type="button" class="btn small" id="btnAddPreset" title="いま作っている印を登録します">＋ いまの印を登録</button>
     <p class="rail-tip"><b>右クリックからもコピーできます</b>右下の印のアイコン、またはデスクトップ・フォルダの何も無い所を右クリックして（Windows 11 は「その他のオプションを確認」の中）、登録した印を押します。</p>
@@ -37,6 +38,8 @@
   <main class="layout">
 <!-- 左：設定 -->
   <section class="panel" aria-label="印を作る">
+    <!-- いまの印の行: いつも場所を取る（呼び出しても入力の列は動かない）。呼び出した印を変えたら「変更あり」と上書き -->
+    <div class="nowline" id="nowLine" role="status"></div>
     <div class="seg" role="tablist" aria-label="印の種類" id="typeTabs">
       <button type="button" role="tab" data-type="mitome">認印</button>
       <button type="button" role="tab" data-type="date">日付印</button>
@@ -141,21 +144,22 @@
       <button type="button" class="btn" id="btnSave">PNG保存<kbd>Ctrl+S</kbd></button>
       <button type="button" class="btn" id="btnFolder">保存フォルダ</button>
     </div>
-    <p class="hint center">コピーしたら、貼り付け先（Excel・Word・PDF など）で Ctrl+V</p>
+    <p class="hint center">Excel・Word などで Ctrl+V で貼り付け。登録した印は Ctrl+1〜9 でもコピー</p>
+    <button type="button" class="checklink" id="btnCheck" data-open="check">貼った大きさが違うときは → 大きさを確かめる</button>
   </section>
   </main>
   </div>
 </div>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastAct" hidden></button></div>
 
 <dialog id="dlgPreset">
   <form method="dialog" class="dlg">
-    <label for="inPresetName">登録名</label>
+    <label for="inPresetName" id="lblPresetName">登録名</label>
     <input id="inPresetName" type="text" maxlength="20" autocomplete="off" required>
     <div class="row end">
       <button type="submit" class="btn" value="cancel" formnovalidate>キャンセル</button>
-      <button type="submit" class="btn primary small" value="ok">登録</button>
+      <button type="submit" class="btn primary small" value="ok" id="btnPresetOk">登録</button>
     </div>
   </form>
 </dialog>
@@ -163,6 +167,20 @@
 <dialog id="dlgSettings" class="settings-dlg" aria-labelledby="dlgSettingsTitle">
   <div class="dlg-head"><h1 id="dlgSettingsTitle">設定</h1><button type="button" class="btn small quiet" data-close aria-label="閉じる">閉じる</button></div>
   <div class="settings" id="settings"></div>
+</dialog>
+
+<dialog id="dlgCheck" class="check-dlg" aria-labelledby="dlgCheckTitle">
+  <div class="dlg-head"><h1 id="dlgCheckTitle">貼り付けの大きさを確かめる</h1><button type="button" class="btn small quiet" data-close aria-label="閉じる">閉じる</button></div>
+  <div class="ck">
+    <canvas id="cvRuler" role="img" aria-label="50mm のものさし"></canvas>
+    <ol>
+      <li>「ものさしをコピー」を押す</li>
+      <li>Word・Excel・PowerPoint に Ctrl+V で貼る</li>
+      <li>貼った図を選び、「図の形式」→「サイズ」の幅が <b>50 mm</b> か見る</li>
+    </ol>
+    <div class="row"><button type="button" class="btn primary small" id="btnRulerCopy">ものさしをコピー</button><button type="button" class="btn small" id="btnRulerSave">PNG で保存</button></div>
+    <p class="hint" id="rulerNote"></p>
+  </div>
 </dialog>
 
 <dialog id="dlgHistory" aria-labelledby="dlgHistoryTitle">

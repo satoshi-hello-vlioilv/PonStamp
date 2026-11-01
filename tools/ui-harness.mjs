@@ -81,6 +81,10 @@ export const STATES = [
   // 画面の文字を 125% に（窓が狭ければ入る所まで）・版の札を押して更新履歴を開いた所
   { name: 'large', seed: SEED, run: async (page) => { await page.evaluate(() => localStorage.setItem('ponstamp.zoom', '125')); await page.reload(); await ready(page); } },
   { name: 'history', seed: SEED, run: async (page) => { await page.locator('[data-open="history"]').first().click(); await page.waitForTimeout(200); } },
+  // 登録した印を呼び出して氏名を変えた所（呼び出したときの知らせが消えてから）・貼り付けの大きさを確かめる窓・2 番目の印の「直す ▾」
+  { name: 'edited', seed: SEED, run: async (page) => { await page.locator('.pchip .load').first().click(); await page.fill('#inName', '山田太郎'); await page.waitForTimeout(3000); } },
+  { name: 'check', seed: SEED, run: async (page) => { await page.locator('[data-open="check"]').first().click(); await page.waitForTimeout(200); } },
+  { name: 'organize', seed: SEED, run: async (page) => { await page.locator('.pchip .more').nth(1).click(); await page.waitForTimeout(150); } },
 ];
 export const STATE_NAMES = STATES.map((s) => s.name);
 
