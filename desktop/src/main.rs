@@ -365,7 +365,7 @@ fn start(app: AppHandle) {
                 return;
             }
         }
-        // 通しの確かめ（tools/verify.py）だけ: 名乗りに selftest_broken がある版は、画面を出す前に終わる（起動できない版の真似）
+        // 通しの確かめ（cargo tools verify）だけ: 名乗りに selftest_broken がある版は、画面を出す前に終わる（起動できない版の真似）
         if ctx.selftest.is_some() && update::manifest(&p.app()).is_some_and(|m| m["selftest_broken"] == true) {
             log("SELFTEST 起動できない版の真似として終わります");
             std::process::exit(3);
@@ -443,7 +443,7 @@ pub fn selftest_finish(app: &AppHandle, ctx: &Ctx, mut result: Value) {
             ok &= good;
         }
     }
-    // 更新の係が確かめ終わるのを待つ（この PC のアプリのとき。通しの確かめ verify.py が状態を読む）
+    // 更新の係が確かめ終わるのを待つ（この PC のアプリのとき。通しの確かめ（cargo tools verify）が状態を読む）
     if ctx.installed {
         for _ in 0..240 {
             let st = ctx.updater.status()["state"].clone();

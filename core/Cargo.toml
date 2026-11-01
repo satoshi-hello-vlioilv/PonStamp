@@ -1,0 +1,21 @@
+[package]
+name = "ps-core"
+version = "0.0.0"
+description = "PonStamp の窓に依らない部品（名前と版・保存・PNG の解像度・配布と更新・ショートカットの決まり）。窓（desktop/）と道具（tools/）が使う"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[lib]
+name = "ps_core"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 配る ZIP を作る・展開する・指紋（SHA-256）を確かめる
+zip = { version = "9", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# クリップボードへ渡す絵（DIB）を作るため、PNG を画素に戻す
+png = "0.18"

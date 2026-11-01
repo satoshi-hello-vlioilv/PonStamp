@@ -2,22 +2,25 @@
 
 使う人・配る人向けの説明は [README.md](../README.md)、作業の決まりは [CLAUDE.md](../CLAUDE.md)。
 
-## 1. 役割の分け方（HTML＋Rust＋Python）
+## 1. 役割の分け方（HTML＋Rust）
 
 | 層 | 場所 | 受け持つこと |
 |---|---|---|
 | 画面 | `app/`（HTML・CSS・JS。ES モジュール。exe に埋め込む） | 印を描く（`stamp.js`）・入力と設定の画面（`app.js`・`settings.js`）・外との窓口（`backend.js`）・登録した印の並びを直す関数（`presets.js`）・ものさし（`ruler.js`）・画面の文字の大きさ（`zoom.js`） |
+| 部品 | `core/`（Rust・`ps_core`） | 窓に依らない処理（名前と版・保存・PNG の解像度・release.json と名乗りの形・配る ZIP・置き場を探す・取り込む・配る・ショートカットの決まり）。窓と道具が使う |
 | 窓 | `desktop/`（Rust・Tauri 2） | 窓・通知領域の常駐・1 つだけ起動・保存（解像度つき PNG）・クリップボード・Windows 起動時の常駐・ショートカット・配布と更新 |
-| 道具 | `tools/`（Python・Node） | 配る ZIP（`bundle.py`）・版の記録（`release.py`）・更新の通し（`verify.py`）・撮影と採点（`ui-*.mjs`・`ui_score.py`）・印影の評価（`stamp-eval.mjs`） |
+| 道具 | `tools/`（Rust の `ps-tools`・Node） | `cargo tools <命令>`: 配る ZIP（`build`・`notes`）・版の記録（`release`）・更新の通し（`verify`）・採点（`score`）・Windows 向けの確かめ（`wincheck`）・自己診断の結果（`selftest`）。Node: 撮影（`ui-*.mjs`）・画面と印影の評価関数（`*-eval.mjs`） |
 
 - 前の形（Flask の `app.py` がポート 8765 で画面を出し、Edge のアプリの窓で開く）をやめた。ポートを開かないので、プロキシ・ポートの取り合い・古いサーバーの残りが無い
-- Python は動くのに要らない（道具と試験だけ）。配る物は exe 1 つ
+- Python は使わない（動くのにも、作る・確かめるのにも）。配る物は exe 1 つ。道具は Rust（窓と同じ部品 `ps_core` を使うので、
+  release.json・名乗りの形・名前の決まり・ZIP の作り方が窓の取り込みと食い違わない）。ブラウザを動かす撮影と画面の評価関数だけ Node
 - 画面は `backend.js` だけを通して外と話す。窓の中は Rust の命令（`invoke`）、ふつうのブラウザ（撮影・試し）では localStorage とダウンロードで代わりをする。
   撮影では覚えの `demo` に窓の答え（版・常駐・更新・配布）を入れ、その状態の画面を見せる
 
 ### Rust の中の分け方
 
-- `ps_core`（`desktop/src/lib.rs`。窓に依らない・試験から直に呼ぶ）: `brand`（名前と版）・`paths`（作業場所）・`store`（`state.json`）・`files`（保存）・
+- Rust はワークスペース（最上位の `Cargo.toml`・`Cargo.lock`・`target/`。`core`・`desktop`・`tools`）。道具は窓（Tauri・WebKitGTK）を組まずに作れる
+- `ps_core`（`core/src/lib.rs`。窓に依らない・試験から直に呼ぶ）: `pack`（配る ZIP を作る）・ `brand`（名前と版）・`paths`（作業場所）・`store`（`state.json`）・`files`（保存）・
   `pngx`（pHYs・DIBV5）・`release`（置き場を探す）・`update`（写す・取り込む・入れ替える・戻す）・`distribute`（配る）・`install`（ショートカットの決まり）
 - exe（`desktop/src/main.rs` ほか）: `commands`（画面の命令）・`tray`（通知領域）・`shellmenu`（エクスプローラーの右クリック）・`updater`（裏の確かめ）・
   `lnk`（.lnk）・`clip`（クリップボード）・`autostart`（HKCU の Run）・`proc`（PID を待つ・名前で探す・終わらせる）・`locate`（場所と記録）
@@ -27,8 +30,9 @@
 
 - `app/brand.json`: 名前（`name`・`subtitle`・`exe`）・目印 `app_id`（変えない）・作業場所の名前・前の形の置き場・更新の置き場の既定。
   Rust（`brand.rs` が取り込む）・道具・画面が同じファイルを読む。`tauri.conf.json`・`Cargo.toml` との食い違いは `brand.rs` の試験が止める
-- `app/version.json`: 版・更新履歴・配った版の中身の要約（`release`）。配る物を変えて版を上げ忘れると `tests/test_version.py` が止める
-  （`python tools/release.py --release` で要約を書き、`Cargo.toml`・`tauri.conf.json`・`Cargo.lock` の版もそろえる）
+- `app/version.json`: 版・更新履歴・配った版の中身の要約（`release`）。配る物（`app/`・`core/`・`desktop/`・ワークスペースの `Cargo.toml`・`Cargo.lock`）を変えて
+  版を上げ忘れると `tools/src/release.rs` の試験が止める（`cargo tools release --release` で要約を書き、`desktop/Cargo.toml`・`tauri.conf.json`・
+  `Cargo.lock` の窓の版もそろえる）。道具の部品を変えて `Cargo.lock` が変わったときも、配る物の作り方が変わりうるので版を上げる
 
 ## 3. 起動の流れ
 
@@ -133,12 +137,12 @@ LotScope と同じ形（入口 → 版ごとの写し）。
 
 ## 7. 確かめ方
 
-- `push 前の確かめ`（CLAUDE.md）: 構文・lint・試験（Python 20 件・Rust 40 件ほど）
+- `push 前の確かめ`（CLAUDE.md）: 構文・lint・試験（Rust: 部品・窓・道具 70 件ほど。道具の試験は版の上げ忘れ・配る ZIP の形・採点の決め方も確かめる）
 - 自己診断（`PONSTAMP_SELFTEST=<結果>`）: 本物の窓で、描く・mm と dpi どおりの画素の数・解像度つきの保存（Rust が読み戻す）・クリップボード（印・ものさし）・登録した印・画面のエラー
 - 画面の評価関数（Node）: `presets-eval.mjs`（並びを直す関数）・`ruler-eval.mjs`（ものさしの精度）・`presets-flow-eval.mjs`（本物の Chromium で押す:
   1 手でコピー・Ctrl+番号・変更あり・上書き・名前・並べ替え・削除と元に戻す・ものさし。21 項目）
-- 更新の通し（`tools/verify.py`）: 共有から写る → 裏で取り込む → 開き直すと入れ替わる（控えが残る・共有を指すショートカットが直る）→ 閉じている間に置いた版が 1 回で入る →
+- 更新の通し（`cargo tools verify`）: 共有から写る → 裏で取り込む → 開き直すと入れ替わる（控えが残る・共有を指すショートカットが直る）→ 閉じている間に置いた版が 1 回で入る →
   起動できない版は次に開くと戻り印が付く → 配る版を戻す → 新しい PC が配る入口から入る → 古い版が常駐している間に新しい版の exe を開くと新しい版に代わる →
   共有は 1 ファイルも変わらない・窓が残らない（20 項目）
 - CI: `ci.yml`（Linux・WebKitGTK）と `desktop.yml`（Windows・WebView2。本番の exe・自己診断・更新の通し・配る ZIP・main では Releases へ）
-- Windows だけのコード: `tools/wincheck.py`（Linux から Windows 向けに clippy）
+- Windows だけのコード: `cargo tools wincheck`（Linux から Windows 向けに clippy）

@@ -48,6 +48,23 @@ pub fn folder_name_ok(n: &str) -> bool {
     safe_name(n) && !n.starts_with('.') && !n.contains(['*', '?', '"', '<', '>', '|']) && n.len() <= 64
 }
 
+/// 版のフォルダの目印 release.json の中身（schema 1。読む側は read_release）。窓の「版を置く」と道具の配る ZIP（tools/）が同じ形で書く。
+/// zip・exe は 1 つの名前（safe_name）でなければ断る（置き場の外を指させない）。
+pub fn release_record(app_id: &str, name: &str, version: &str, zip: &str, sha256: &str, exe: &str) -> Result<Value, String> {
+    if !(safe_name(zip) && safe_name(exe)) {
+        return Err(format!("名前に使えない文字があります: {zip} / {exe}"));
+    }
+    if parse_version(version).is_none() {
+        return Err(format!("版は X.Y.Z の形で: {version}"));
+    }
+    Ok(serde_json::json!({"schema": 1, "app_id": app_id, "name": name, "version": version, "zip": zip, "sha256": sha256, "exe": exe}))
+}
+
+/// 配る ZIP の名前（置き場・GitHub の Releases で同じ）。
+pub fn zip_name(name: &str, version: &str) -> String {
+    format!("{name}-{version}-windows.zip")
+}
+
 /// 版のフォルダの目印。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Release {

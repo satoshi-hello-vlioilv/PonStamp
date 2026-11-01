@@ -1,0 +1,3 @@
+# `cargo tools <命令>` で開発の道具（tools/ の ps-tools）を動かす。例: cargo tools release --release
+[alias]
+tools = "run --quiet --locked -p ps-tools --"

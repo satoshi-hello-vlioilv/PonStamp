@@ -1,5 +1,5 @@
 {
-  "_about": "アプリの名前（1 か所の定義）。窓の題名・トレイ・ショートカット・配る ZIP・作業場所はすべてここから読む（desktop/src/brand.rs・tools/bundle.py・画面）。name・subtitle・exe は変えてよい（exe を変えたら desktop/Cargo.toml の [[bin]] name と desktop/tauri.conf.json の mainBinaryName、name を変えたら productName も同じにする。brand.rs の試験が食い違いを止める）。app_id は変えない（更新の置き場で「このアプリの版」を見分ける目印・WebView の保存先）。",
+  "_about": "アプリの名前（1 か所の定義）。窓の題名・トレイ・ショートカット・配る ZIP・作業場所はすべてここから読む（core/src/brand.rs・道具 cargo tools・画面）。name・subtitle・exe は変えてよい（exe を変えたら desktop/Cargo.toml の [[bin]] name と desktop/tauri.conf.json の mainBinaryName、name を変えたら productName も同じにする。brand.rs の試験が食い違いを止める）。app_id は変えない（更新の置き場で「このアプリの版」を見分ける目印・WebView の保存先）。",
   "name": "PonStamp",
   "subtitle": "電子印メーカー",
   "exe": "PonStamp.exe",

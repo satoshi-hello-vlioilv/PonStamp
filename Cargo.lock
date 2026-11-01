@@ -2587,20 +2587,17 @@ dependencies = [
 
 [[package]]
 name = "ponstamp-desktop"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "chrono",
- "png",
- "serde",
+ "ps-core",
  "serde_json",
- "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "windows",
- "zip",
 ]
 
 [[package]]
@@ -2699,6 +2696,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "ps-core"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "png",
+ "serde",
+ "serde_json",
+ "sha2",
+ "zip",
+]
+
+[[package]]
+name = "ps-tools"
+version = "0.0.0"
+dependencies = [
+ "ps-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "zip",
 ]
 
 [[package]]

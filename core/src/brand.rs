@@ -1,7 +1,7 @@
 //! アプリの名前と版（`app/brand.json`・`app/version.json` の 1 か所の定義を、作るときに取り込む）。
 //!
 //! 名前（`name`・`subtitle`・`exe`）は窓の題名・トレイ・ショートカット・記録に使う。`app_id` は変えない目印
-//! （更新の置き場で「このアプリの版」を見分ける・Tauri の identifier）。画面と Python の道具も同じファイルを読む。
+//! （更新の置き場で「このアプリの版」を見分ける・Tauri の identifier）。画面と道具（tools/）も同じファイルを読む。
 
 use serde::Deserialize;
 use std::sync::OnceLock;
@@ -32,7 +32,7 @@ pub fn brand() -> &'static Brand {
     B.get_or_init(|| serde_json::from_str(BRAND).expect("app/brand.json が読めません"))
 }
 
-/// この exe の版（`app/version.json` の version）。配る形の名乗り（app.json）も同じ版を書く（tools/bundle.py）
+/// この exe の版（`app/version.json` の version）。配る形の名乗り（app.json）も同じ版を書く（cargo tools build）
 pub fn version() -> &'static str {
     static V: OnceLock<String> = OnceLock::new();
     V.get_or_init(|| {
@@ -47,21 +47,24 @@ mod tests {
 
     #[test]
     fn agrees_with_the_build_tools() {
-        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../../desktop/tauri.conf.json")).unwrap();
         let b = brand();
         assert_eq!(conf["identifier"], b.app_id.as_str(), "Tauri の identifier は変えない目印（WebView の保存先が変わらない）");
         assert_eq!(conf["productName"], b.name.as_str());
         assert_eq!(format!("{}.exe", conf["mainBinaryName"].as_str().unwrap()), b.exe, "exe の名前");
-        let cargo = include_str!("../Cargo.toml");
+        let cargo = include_str!("../../desktop/Cargo.toml");
         assert!(cargo.contains(&format!("name = \"{}\"", b.exe.trim_end_matches(".exe"))), "Cargo.toml の [[bin]] name も exe と同じ");
         assert!(!b.data_dir.is_empty() && !b.subtitle.is_empty());
     }
 
     #[test]
     fn one_version_everywhere() {
-        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../../desktop/tauri.conf.json")).unwrap();
         assert_eq!(conf["version"], version(), "tauri.conf.json の version を app/version.json にそろえる");
-        assert_eq!(env!("CARGO_PKG_VERSION"), version(), "Cargo.toml の version を app/version.json にそろえる");
+        // 窓（desktop/Cargo.toml の [package] の最初の version）の版。core 自身の版（CARGO_PKG_VERSION）は 0.0.0 のまま（配る物の版ではない）
+        let cargo = include_str!("../../desktop/Cargo.toml");
+        let desktop = cargo.lines().find_map(|l| l.strip_prefix("version = \"").and_then(|r| r.strip_suffix('"')));
+        assert_eq!(desktop, Some(version()), "desktop/Cargo.toml の version を app/version.json にそろえる");
         assert!(crate::release::parse_version(version()).is_some(), "版は X.Y.Z");
     }
 }

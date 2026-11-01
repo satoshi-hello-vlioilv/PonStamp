@@ -28,6 +28,11 @@ pub const MAX_UNCONFIRMED_STARTS: u64 = 1;
 const BUSY_WAIT: Duration = Duration::from_millis(3000);
 const BUSY_STEP: Duration = Duration::from_millis(150);
 
+/// 配る形の名乗りの中身 {app_id, name, exe, version}（読む側は manifest・validate_dist）。道具（tools/）が配る ZIP を作るときに書く。
+pub fn manifest_record(app_id: &str, name: &str, exe: &str, version: &str) -> Value {
+    json!({"app_id": app_id, "name": name, "exe": exe, "version": version})
+}
+
 /// 配る形の名乗り（dir\app.json）。
 pub fn manifest(dir: &Path) -> Option<Value> {
     read_json(&dir.join(MANIFEST)).filter(Value::is_object)
@@ -466,7 +471,7 @@ pub fn running_installed(p: &Paths, me: &Path, exe: &str) -> bool {
 
 /// 版ごとの写しの置き場（名乗りの版＋exe の大きさ＋更新時刻。版か中身が変われば別の場所）。
 /// 版を名前に入れる: Windows の写しは更新時刻を保つので、同じ exe を別の版として配ると大きさと時刻だけでは同じ場所になり、
-/// 前の版の窓を「同じ写し」と見なして代われない（verify.py の筋書き 7 が Windows で落ちた）。
+/// 前の版の窓を「同じ写し」と見なして代われない（cargo tools verify の筋書き 7 が Windows で落ちた）。
 pub fn copy_for_run(p: &Paths, app_exe: &Path) -> Result<PathBuf, String> {
     let m = std::fs::metadata(app_exe).map_err(|e| format!("{} を読めません: {e}", app_exe.display()))?;
     let t = m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
