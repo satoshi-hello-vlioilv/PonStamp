@@ -35,7 +35,7 @@
 LotScope と同じ形（入口 → 版ごとの写し）。
 
 ```
-共有・BOX の exe ─(この PC へ写す: localize)→ app\PonStamp.exe（入口）─(版ごとの写し: handoff)→ desktop\<大きさ-時刻>\PonStamp.exe（窓）
+共有・BOX の exe ─(この PC へ写す: localize)→ app\PonStamp.exe（入口）─(版ごとの写し: handoff)→ desktop\<版-大きさ-時刻>\PonStamp.exe（窓）
 配る入口（置き場の exe）─(配る版を取り込んで据える: install_from_entry)→ app\ ……
 ```
 
