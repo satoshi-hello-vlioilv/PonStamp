@@ -291,8 +291,8 @@ function openPresetMenu(i, anchor) {
   const menu = h('div', { class: 'pmenu', role: 'menu', id: 'presetMenu', 'aria-label': `「${p.name}」を直す` },
     item('名前を変える…', () => openPresetDialog(i)),
     h('hr', {}),
-    item('上へ', () => changeList(P.move(presets, i, -1), null, false), { off: i === 0 }),
-    item('下へ', () => changeList(P.move(presets, i, 1), null, false), { off: i === presets.length - 1 }),
+    item('前へ', () => changeList(P.move(presets, i, -1), null, false), { off: i === 0 }),   // 上下でなく前後（2 列の大きな札では左右に動くため）
+    item('後ろへ', () => changeList(P.move(presets, i, 1), null, false), { off: i === presets.length - 1 }),
     h('hr', {}),
     item('削除', () => changeList(P.remove(presets, i), `「${p.name}」を消しました`, true), { cls: 'danger' }));
   document.body.appendChild(menu);

@@ -57,13 +57,13 @@ try {
   check('同じ名前には変えない（断る）', (await stored())[2].name === '会社印' && (await toastText()).includes('もうあります'), await toastText());
 
   // 4. 並べ替え（呼び出した印を追う）
-  await menu(0, '下へ');
+  await menu(0, '後ろへ');
   await page.waitForTimeout(100);
   const order = (await stored()).map((p) => p.name);
-  check('下へ', order.join('|') === '日付印 総務|認印 山田|会社印', order.join('|'));
+  check('後ろへ', order.join('|') === '日付印 総務|認印 山田|会社印', order.join('|'));
   check('並べ替えても、呼び出した印を指し続ける', (await page.locator('.pchip.on .nm').textContent()) === '認印 山田' && (await nowLine()).includes('認印 山田'), await nowLine());
-  check('いちばん上の「上へ」は押せない', await page.evaluate(async () => { document.querySelectorAll('.pchip .more')[0].click(); await new Promise((r) => setTimeout(r, 50));
-    const b = [...document.querySelectorAll('#presetMenu button')].find((x) => x.textContent === '上へ'); const off = b.disabled; document.body.click(); return off; }));
+  check('いちばん前の「前へ」は押せない', await page.evaluate(async () => { document.querySelectorAll('.pchip .more')[0].click(); await new Promise((r) => setTimeout(r, 50));
+    const b = [...document.querySelectorAll('#presetMenu button')].find((x) => x.textContent === '前へ'); const off = b.disabled; document.body.click(); return off; }));
 
   // 5. 削除はすぐ消え、元に戻せる
   await menu(1, '削除');
