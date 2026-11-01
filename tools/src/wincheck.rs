@@ -93,7 +93,9 @@ mod tests {
         for rel in &files {
             let dest = copy.join("desktop").join(rel);
             std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-            std::fs::write(&dest, std::fs::read_to_string(repo.join("desktop").join(rel)).unwrap().replace('\n', "\r\n")).unwrap();
+            // 取り出しの改行によらず、LF にそろえた中身を CRLF で書く
+            let (text, _) = crate::repo::read_text(&repo.join("desktop").join(rel)).unwrap();
+            crate::repo::write_text(&dest, &text, true).unwrap();
         }
         let dest = crate::repo::temp_dir("wincheck-crlf");
         make(&copy, &dest).unwrap();

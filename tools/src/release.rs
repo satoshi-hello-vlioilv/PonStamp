@@ -301,18 +301,22 @@ mod tests {
             std::fs::copy(&p, &dest).unwrap();
         }
         let before = release_digest(&copy);
+        // 改行を入れ替える（取り出しが LF なら CRLF に、Windows の取り出しで CRLF なら LF に）
         let main = copy.join("app/js/app.js");
-        let text = std::fs::read_to_string(&main).unwrap();
-        std::fs::write(&main, text.replace('\n', "\r\n")).unwrap();
+        let (text, crlf) = read_text(&main).unwrap();
+        write_text(&main, &text, !crlf).unwrap();
         sync_build_versions(&copy, "99.0.0").unwrap();
-        assert!(std::fs::read_to_string(copy.join("desktop/Cargo.toml")).unwrap().contains("version = \"99.0.0\""), "版を書き換えた");
-        assert!(std::fs::read_to_string(copy.join("Cargo.lock")).unwrap().contains(&format!("{LOCK_PACKAGE}\"99.0.0\"")));
+        let lf = |rel: &str| read_text(&copy.join(rel)).unwrap().0;
+        assert!(lf("desktop/Cargo.toml").contains("version = \"99.0.0\""), "版を書き換えた");
+        assert!(lf("Cargo.lock").contains(&format!("{LOCK_PACKAGE}\"99.0.0\"")));
         assert_eq!(release_digest(&copy), before);
-        std::fs::write(&main, format!("{}// x", std::fs::read_to_string(&main).unwrap())).unwrap();
+        let (text, crlf) = read_text(&main).unwrap();
+        write_text(&main, &format!("{text}// x"), crlf).unwrap();
         assert_ne!(release_digest(&copy), before, "中身が変われば要約も変わる");
     }
 
-    /// Windows の取り出し（Git が改行を CRLF にする）でも、版をそろえられ・CRLF のまま保ち・要約は LF の取り出しと同じ
+    /// Windows の取り出し（Git が改行を CRLF にする）でも、版をそろえられ・CRLF のまま保ち・要約は LF の取り出しと同じ。
+    /// 写しは、取り出しの改行（Linux は LF・Windows は CRLF）によらず、LF にそろえた中身から LF 版と CRLF 版を作る
     #[test]
     fn versions_sync_and_digest_on_a_crlf_checkout() {
         let repo = root();
@@ -321,11 +325,11 @@ mod tests {
             for (dir, to_crlf) in [(&lf, false), (&crlf, true)] {
                 let dest = dir.join(&rel);
                 std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-                let body = std::fs::read(&p).unwrap();
-                let text = String::from_utf8(body.clone());
-                match text {
-                    Ok(t) if to_crlf => std::fs::write(&dest, t.replace('\n', "\r\n")).unwrap(),
-                    _ => std::fs::write(&dest, body).unwrap(),
+                match read_text(&p) {
+                    Ok((text, _)) => write_text(&dest, &text, to_crlf).unwrap(),
+                    Err(_) => {
+                        std::fs::copy(&p, &dest).unwrap(); // 文字でないファイル（絵）はそのまま
+                    }
                 }
             }
         }
