@@ -1,8 +1,16 @@
 {
-  "_about": "版と更新履歴（1 か所の定義）。配る物（app/・desktop/）を変えたら version を上げ、changelog の先頭に 1 件足し、python tools/release.py --release で release を書く（手で書かない）。tests/test_version.py が、版を上げずに中身を変えたのを止める。desktop/Cargo.toml と desktop/tauri.conf.json の version もこの版にそろえる。",
-  "version": "1.4.0",
-  "release": {"version": "1.4.0", "digest": "f83b2f0d3e7422c3"},
+  "_about": "版と更新履歴（1 か所の定義）。配る物（app/・core/・desktop/）を変えたら version を上げ、changelog の先頭に 1 件足し、cargo tools release --release で release を書く（手で書かない）。tools/src/release.rs の試験が、版を上げずに中身を変えたのを止める。desktop/Cargo.toml と desktop/tauri.conf.json の version もこの版にそろえる。",
+  "version": "1.4.1",
+  "release": {"version": "1.4.1", "digest": "500db16cec4e0a25"},
   "changelog": [
+    {
+      "version": "1.4.1",
+      "date": "2026-11-01",
+      "notes": [
+        "中の作りを整えました（窓に依らない部品を分け、開発の道具を Python から Rust にしました）。使い方と動きは変わりません",
+        "配る ZIP の名乗りと release.json を、アプリの取り込みと同じ部品で作るようにしました（形の食い違いが起きません）"
+      ]
+    },
     {
       "version": "1.4.0",
       "date": "2026-11-01",

@@ -152,16 +152,18 @@ pub fn place(
     let _ = std::fs::remove_dir_all(&placing);
     let result = (|| {
         std::fs::create_dir_all(&placing).map_err(|e| format!("置き場にフォルダを作れません（{}）: {e}", placing.display()))?;
-        let zip_name = format!("{name}-{version}-windows.zip");
+        let zip_name = release::zip_name(&name, &version);
         let sha = sha256_file(zip).map_err(|e| e.to_string())?;
         copy_with_progress(zip, &placing.join(&zip_name), progress)?;
         progress("finish", 0, 0);
         if sha256_file(&placing.join(&zip_name)).map_err(|e| e.to_string())? != sha {
             return Err("置き場へ写した ZIP の指紋が元と違います（写す途中で壊れました）".to_string());
         }
-        let rel = json!({"schema": 1, "app_id": app_id, "name": name, "version": version, "zip": zip_name, "sha256": sha, "exe": exe,
-                         "placedAt": now_text(), "placedBy": who.login, "placedPc": who.pc, "source": source_name,
-                         "bytes": std::fs::metadata(zip).map(|m| m.len()).unwrap_or(0)});
+        // 形は release_record（道具の配る ZIP と同じ）。置いた日・人・PC・元の名前・大きさを足す
+        let mut rel = release::release_record(app_id, &name, &version, &zip_name, &sha, &exe)?;
+        let more = json!({"placedAt": now_text(), "placedBy": who.login, "placedPc": who.pc, "source": source_name,
+                          "bytes": std::fs::metadata(zip).map(|m| m.len()).unwrap_or(0)});
+        rel.as_object_mut().expect("object").extend(more.as_object().expect("object").clone());
         write_json(&placing.join(MARKER), &rel)?;
         std::fs::rename(&placing, &dest).map_err(|e| format!("版のフォルダを置けません: {e}"))?;
         Ok(rel)

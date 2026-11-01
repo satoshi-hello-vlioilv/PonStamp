@@ -1,6 +1,7 @@
-# CLAUDE.md の「push 前の確かめ」を GitHub でも回す（型・構文・lint〔ruff・clippy〕・試験）。
-# - tools: 画面と道具の JS の構文・Python の構文と lint・試験（道具は Python の標準の部品だけで動く）・画面の評価関数（Node・Chromium）
-# - desktop: 窓（Rust・Tauri）の書式・作成・試験と、本物の窓（WebKitGTK）での自己診断と更新の通し（Windows の WebView2 は desktop.yml）
+# CLAUDE.md の「push 前の確かめ」を GitHub でも回す（型・構文・lint〔clippy〕・試験）。Python は使わない（道具は Rust の tools/・撮影と画面の評価関数は Node）。
+# - tools: 画面と道具の JS の構文・窓に依らない部品（core）と道具（tools）の試験（WebKitGTK は要らない）・画面の評価関数（Node・Chromium）
+# - desktop: ワークスペース全体（core・desktop・tools）の書式・作成・clippy・試験と、本物の窓（WebKitGTK）での自己診断と更新の通し
+#   （Windows の WebView2 は desktop.yml）
 name: CI
 
 on:
@@ -13,23 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # 手元と同じ版（上げるときは手元と一緒に上げる）
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: tools
       - name: 型・構文（画面の JS・道具の JS）
         run: bash tools/js-check.sh   # import を使う .js はモジュールとして確かめる（CLAUDE.md と同じ）
-      - name: 型・構文（Python）
-        run: python -m compileall -q tools tests
-      # 手元と同じ版の ruff（版が変わると決まりが増えて、手元で通った物が落ちる）
-      - name: lint（Python・ruff）
-        run: |
-          pip install ruff==0.16.9
-          ruff check tools tests
-      - name: test（Python）
-        run: python -m unittest discover -s tests -t .
+      - name: test（窓に依らない部品・道具。版の上げ忘れ・配る ZIP の形・採点の決め方）
+        run: cargo test --locked -p ps-core -p ps-tools
       # 評価関数（画面の部品の動き。ものさし・使い方は本物の Chromium で押して確かめる）。Playwright は手元と同じ版
       - name: test（画面の評価関数・Node）
         run: |
@@ -45,9 +41,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       - name: 窓を作る部品（WebKitGTK）と画面の無い X
         run: |
           sudo apt-get update
@@ -57,42 +50,23 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop
       - name: lint（Rust の書式）
-        working-directory: desktop
-        run: cargo fmt --check
+        run: cargo fmt --all --check
       - name: typecheck（Rust）
-        working-directory: desktop
-        run: cargo build --locked
+        run: cargo build --locked --workspace
       - name: lint（Rust・clippy）
-        working-directory: desktop
-        run: cargo clippy --locked --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: test（Rust）
-        working-directory: desktop
-        run: cargo test --locked
+        run: cargo test --locked --workspace
       - name: 自己診断（本物の窓・WebKitGTK）
         run: |
           export PONSTAMP_LOCAL_ROOT="$RUNNER_TEMP/root" PONSTAMP_SELFTEST="$RUNNER_TEMP/selftest.json" PONSTAMP_AUTOSTART_DIR="$RUNNER_TEMP/autostart"
-          timeout 180 xvfb-run -a desktop/target/debug/PonStamp || true
-          python - <<'PY'
-          import json, os, sys
-          path = os.environ["PONSTAMP_SELFTEST"]
-          if not os.path.exists(path):
-              sys.exit("結果のファイルがありません")
-          r = json.load(open(path, encoding="utf-8"))
-          for x in r.get("results", []):
-              print("PASS" if x["ok"] else "FAIL", x["name"], "--", x["info"])
-          for s in r.get("saved", []):
-              print("PASS" if s["ok"] else "FAIL", "保存した PNG の解像度", s["type"], s["fileDpi"])
-          if r.get("error"):
-              print("ERROR:", r["error"])
-          sys.exit(0 if r.get("ok") else 1)
-          PY
-      # 更新の通し（tools/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる →
-      # 起動できない版は控えへ戻す → 配る版を戻す → 新しい PC が配る入口から入る
+          timeout 180 xvfb-run -a target/debug/PonStamp || true
+          cargo tools selftest "$PONSTAMP_SELFTEST"
+      # 更新の通し（cargo tools verify）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる →
+      # 起動できない版は控えへ戻す → 配る版を戻す → 新しい PC が配る入口から入る → 古い版が常駐していても新しい版の exe で代わる
       - name: 更新の通し（本物の窓・WebKitGTK）
-        run: xvfb-run -a python tools/verify.py --exe desktop/target/debug/PonStamp --work "$RUNNER_TEMP/verify"
+        run: xvfb-run -a cargo tools verify --exe target/debug/PonStamp --work "$RUNNER_TEMP/verify"
       - name: 記録
         if: always()
         run: tail -n 40 "$RUNNER_TEMP"/root/logs/*.log || true

@@ -1,0 +1,20 @@
+[package]
+name = "ps-tools"
+version = "0.0.0"
+description = "PonStamp の開発の道具（配る ZIP・版の記録・更新の通し・採点・Windows 向けの確かめ・自己診断の結果）。`cargo tools <命令>`"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[[bin]]
+name = "ps-tools"
+path = "src/main.rs"
+
+[dependencies]
+ps_core = { package = "ps-core", path = "../core" }
+serde_json = "1"
+serde = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+zip = { version = "9", default-features = false, features = ["deflate"] }

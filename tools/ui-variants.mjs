@@ -4,7 +4,7 @@
 //
 // 案の定義（ES モジュール）は PROPOSALS = [{ key, name, css, ops }] を書き出す（例: tools/ui-proposals/2026-10-settings.mjs）。
 // 今の画面に案ごとの CSS と DOM の組み替え（ops）を当て、状態ごとに撮る（状態-テーマ-案.png）。測る量は ui-check.mjs と同じ（metrics.json）。
-// 状態ごとに全案を並べた一覧（sheet-状態-テーマ.png）も作る。一覧で全体を、1 枚ずつの画像で細部を見て採点する（ui_score.py）。
+// 状態ごとに全案を並べた一覧（sheet-状態-テーマ.png）も作る。一覧で全体を、1 枚ずつの画像で細部を見て採点する（cargo tools score）。
 //
 // ops（上から順に当てる。動かした要素の id はそのままなので、画面の仕組みは動き続ける）:
 //   ["move", 動かすもの, "before"|"after"|"prepend"|"append", 基準]

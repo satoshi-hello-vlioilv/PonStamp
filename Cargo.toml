@@ -1,0 +1,14 @@
+# ワークスペース（1 つの Cargo.lock・1 つの target）。
+#   core/     ps_core: 窓に依らない部品（名前と版・release.json と名乗りの形・ZIP・指紋・配布と更新）。窓と道具が同じ決まりを使う
+#   desktop/  窓（Tauri）。exe は PonStamp
+#   tools/    ps-tools: 開発の道具（配る ZIP・版の記録・更新の通し・採点・Windows 向けの確かめ）。`cargo tools <命令>`（.cargo/config.toml）
+[workspace]
+members = ["core", "desktop", "tools"]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
