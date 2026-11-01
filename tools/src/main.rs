@@ -60,10 +60,14 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         }
         Some("verify") => {
             let exe = need(rest, "--exe")?;
-            let exe = std::fs::canonicalize(&exe).map_err(|e| format!("{} が見つかりません: {e}", exe.display()))?;
+            if !exe.is_file() {
+                return Err(format!("{} が見つかりません", exe.display()));
+            }
+            // 絶対の道にする（canonicalize は Windows で \\?\ 付きの道を返し、窓・PowerShell の道と比べられなくなるので使わない）
+            let exe = std::path::absolute(&exe).map_err(|e| e.to_string())?;
             let work = opt(rest, "--work").unwrap_or_else(|| std::env::temp_dir().join("ponstamp-verify"));
             std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
-            let work = std::fs::canonicalize(&work).map_err(|e| e.to_string())?;
+            let work = std::path::absolute(&work).map_err(|e| e.to_string())?;
             let ok = verify::run(&repo, &exe, &work)?;
             verify::print_logs(&work);
             if ok && !rest.iter().any(|a| a == "--keep") {

@@ -1,7 +1,7 @@
 {
   "_about": "版と更新履歴（1 か所の定義）。配る物（app/・core/・desktop/）を変えたら version を上げ、changelog の先頭に 1 件足し、cargo tools release --release で release を書く（手で書かない）。tools/src/release.rs の試験が、版を上げずに中身を変えたのを止める。desktop/Cargo.toml と desktop/tauri.conf.json の version もこの版にそろえる。",
   "version": "1.4.1",
-  "release": {"version": "1.4.1", "digest": "c4a8a0f4502db552"},
+  "release": {"version": "1.4.1", "digest": "500db16cec4e0a25"},
   "changelog": [
     {
       "version": "1.4.1",

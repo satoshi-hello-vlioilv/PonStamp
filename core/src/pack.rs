@@ -35,6 +35,7 @@ pub fn zip_dir(root: &Path, top: &str, out: &Path) -> Result<usize, String> {
     let f = std::fs::File::create(out).map_err(|e| format!("{} を作れません: {e}", out.display()))?;
     let mut z = zip::ZipWriter::new(f);
     for p in &list {
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut opt =
             zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated).compression_level(Some(9));
         #[cfg(unix)]
