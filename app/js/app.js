@@ -212,8 +212,9 @@ function renderPresets() {
     const chip = h('div', { class: `pchip${i === loaded ? ' on' : ''}` });
     const cv = document.createElement('canvas');
     render(cv, merge(DEFAULTS, p.s), 144);   // 見本は 36〜72px の表示を 2 倍の細かさで（広い画面の大きな見本・表示倍率 125〜200% でもぼやけない）
-    const load = h('button', { type: 'button', class: 'load', title: `「${p.name}」を呼び出す` }, cv, h('span', { class: 'nm' }, p.name),
-      i === loaded && dirty ? h('small', { class: 'reg-form' }, '登録した形') : null);
+    // 名前と「登録した形」は縦に 2 行（見本の絵の高さの中に収め、変えても札の高さを変えない）
+    const load = h('button', { type: 'button', class: 'load', title: `「${p.name}」を呼び出す` }, cv,
+      h('span', { class: 'nmw' }, h('span', { class: 'nm' }, p.name), i === loaded && dirty ? h('small', { class: 'reg-form' }, '登録した形') : null));
     load.addEventListener('click', () => loadPreset(i));
     const n = i < P.SHORTCUT_COUNT ? i + 1 : 0;
     const cp = h('button', { type: 'button', class: 'cp', title: n ? `登録した形でコピー（Ctrl+${n}）` : '登録した形でコピー', 'aria-label': `「${p.name}」をコピー` }, 'コピー');

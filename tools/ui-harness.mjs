@@ -202,6 +202,10 @@ export function measure() {
     .filter((el) => parseFloat(getComputedStyle(el).fontSize) < 11).length;
   const primaries = controls.filter((el) => el.matches('.primary, .btn.primary, [data-primary]')).length;
   const scroll = Math.max(0, document.documentElement.scrollHeight - vh);
+  // 入力の列の中の送り（頁は送らず、列の中だけ送る作り。書体と風合いを閉じていて列に入らなければ、送らないと見えない物がある）
+  const panel = document.querySelector('.panel');
+  const adv = document.querySelector('details.adv');
+  const panelScroll = panel && !(adv && adv.open) ? Math.max(0, panel.scrollHeight - panel.clientHeight) : 0;
   const stage = document.querySelector('#pv')?.getBoundingClientRect();
   return {
     controls: controls.length,
@@ -210,6 +214,7 @@ export function measure() {
     clipped,
     small,
     scroll,
+    panelScroll,
     preview: stage ? Math.round(stage.width) : 0,
   };
 }

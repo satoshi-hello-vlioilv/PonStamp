@@ -15,6 +15,9 @@ try {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: app.base });
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('ponstamp.state')).presets.map((p) => ({ name: p.name, n: p.s.name })));
   const toastText = () => page.locator('#toastText').textContent();
+  /** 知らせを空にしてから fn を動かし、新しい知らせが出るまで待つ（コピーは描いて PNG にする間かかる。決め打ちの待ちでは前の知らせを読む） */
+  const fresh = async (fn) => { await page.evaluate(() => { document.querySelector('#toastText').textContent = ''; }); await fn();
+    await page.waitForFunction(() => document.querySelector('#toastText').textContent !== '', null, { timeout: 3000 }).catch(() => {}); };
   const nowLine = () => page.locator('#nowLine').innerText();
   const menu = async (i, label) => { await page.locator('.pchip .more').nth(i).click(); await page.locator('#presetMenu button', { hasText: label }).click(); };
   let clicks = 0;
@@ -22,12 +25,10 @@ try {
 
   // 1. 登録した印を 1 手でコピー（呼び出さずに）・Ctrl+番号
   clicks = 0;
-  await click(page.locator('.pchip .cp').nth(1));
-  await page.waitForTimeout(150);   // コピー（描いて PNG にする）が終わり、知らせが出るまで
+  await fresh(() => click(page.locator('.pchip .cp').nth(1)));
   check('登録した印を 1 手でコピー', clicks === 1 && (await toastText()).includes('「日付印 総務」をコピーしました'), `${clicks} 手・${await toastText()}`);
   await page.locator('body').click({ position: { x: 1000, y: 400 } });
-  await page.keyboard.press('Control+3');
-  await page.waitForTimeout(150);
+  await fresh(() => page.keyboard.press('Control+3'));
   check('Ctrl+3 で 3 番目をコピー', (await toastText()).includes('「社印」をコピーしました'), await toastText());
   check('呼び出していなければ「新しい印」', (await nowLine()).includes('新しい印'), await nowLine());
 
@@ -87,8 +88,7 @@ try {
   check('大きさを確かめる窓が開く', await page.locator('#dlgCheck').evaluate((d) => d.open));
   const w = await page.locator('#cvRuler').evaluate((c) => c.width);
   check('窓の見本は 300 dpi の 50mm（591px）', w === 591, `${w}px`);
-  await page.locator('#btnRulerCopy').click();
-  await page.waitForTimeout(150);
+  await fresh(() => page.locator('#btnRulerCopy').click());
   check('ものさしをコピー', (await toastText()).includes('ものさしをコピーしました'), await toastText());
   // 保存は窓口（backend.savePng）へ渡る名前と解像度を見る（窓では Rust がこの名前で保存する。撮影の Chromium は Blob のダウンロードに名前を返さない）
   const saved = await page.evaluate(async () => { const b = window.__ps.backend; const orig = b.savePng; let got = null;

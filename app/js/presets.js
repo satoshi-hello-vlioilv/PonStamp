@@ -52,7 +52,7 @@ export function remove(list, i) {
 /** いまの印を新しく足す（同じ名前があれば Error。上書きは overwrite で明示する） */
 export function add(list, name, s) {
   const n = cleanName(name);
-  if (list.some((p) => p.name === n)) throw new Error(`「${n}」はもうあります。上書きするときは、その印の「…」から選んでください`);
+  if (list.some((p) => p.name === n)) throw new Error(`「${n}」はもうあります。上書きするときは、その印を呼び出して変え、「いまの印」の行の「上書き」を押してください`);
   return [...list, { name: n, s }];
 }
 
