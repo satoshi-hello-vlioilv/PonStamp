@@ -84,9 +84,11 @@ body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex
   .rail .pchip.on { border-color: var(--accent); }   /* 呼び出した札（大きな札の枠の指定より強く） */
 }
 
-.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(380px, 430px) 1fr; }
+.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(360px, 400px) 1fr; }
 .panel { min-height: 0; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.preview { min-height: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; }
+/* 右: 印とコピーの縦の並び（pstack）と、その右に「大きさと風合い」の札（tune）。印の幅 = 窓の高さと、札の分を引いた横の幅の小さい方 */
+.preview { min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 24px; padding: 20px; }
+.pstack { --side: 224px; display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(640px, calc(100vh / var(--zoom) - 340px), calc(100cqw - var(--side))); }
 
 /* ---------------------------------------------------------------- 入力 */
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--chip); border-radius: 10px; padding: 4px; }
@@ -125,12 +127,16 @@ input:disabled { opacity: .5; }
 .pills button[aria-pressed="true"] { background: var(--panel); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .pills.small button { height: 26px; font-size: 12px; color: var(--muted); }
 .pills.small button[aria-pressed="true"] { color: var(--text); }
-/* スライダー（印の字の大きさ・大きさ・枠・字の太さ・かすれ・傾き）は 1 つの形: 名前 ｜ 帯 ｜ 値 の 1 行。大きさは帯の下によく使う大きさの目盛り。
-   列の幅は 1 か所（--lbl・--cols。名前の列は「印の字の大きさ」が 1 行に入る幅）。書体と風合いの箱の中は、箱の内側の余白（13px）を引いて、外の帯と左右をそろえる */
-.panel { --lbl: 96px; --cols: var(--lbl) 1fr 68px; }
-.field.slider { --thumb: 18px; display: grid; grid-template-columns: var(--cols); grid-template-areas: "l b v" ". t ."; align-items: center; column-gap: 8px; }
+/* スライダー（印の大きさ・字の大きさ・枠・字の太さ・かすれ・傾き）は「大きさと風合い」の札だけに置き、1 つの形: 名前 ｜ 値 の行と、その下の帯。
+   印の大きさは帯の下によく使う大きさの目盛り。入力の列の名前の列（--lbl）は「色」「書体」の幅 */
+.panel { --lbl: 64px; }
+.tune { flex: 0 0 200px; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.tune-h { margin: 0; font-size: 13px; font-weight: 700; color: var(--text); }
+.tune-btns { display: flex; flex-direction: column; gap: 6px; } .tune-btns .btn { width: 100%; }
+.field.slider { --thumb: 18px; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "l v" "b b" "t t"; align-items: center; column-gap: 8px; row-gap: 2px; }
+#sizeField .val input { width: 56px; }
 .field.slider .lblrow { display: contents; }
-.field.slider label { grid-area: l; margin: 0; font-size: 13px; color: var(--text); }
+.field.slider label { grid-area: l; margin: 0; font-size: 13px; color: var(--text); white-space: nowrap; }
 .field.slider output, .field.slider .val { grid-area: v; justify-self: end; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
 .field.slider input[type=range] { grid-area: b; display: block; width: 100%; margin: 0; accent-color: var(--accent); }
 .field.slider .ticks { grid-area: t; }
@@ -146,18 +152,26 @@ input:disabled { opacity: .5; }
 .ticks button::before { content: ""; position: absolute; left: 50%; top: -3px; width: 1px; height: 5px; background: var(--line); }
 .ticks button:hover { background: var(--chip); color: var(--text); }
 .ticks button[aria-pressed="true"] { color: var(--text); font-weight: 700; }
-/* 書体と風合い: 名前の付いた 1 つのまとまり（上下の線で区切る。左右の余白を作らず、中の帯を外の帯と同じ列に）。
-   閉じていても、見出しの下の行に今の値を全部出す（切らない） */
-.adv { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 6px 0 8px; }
-.adv summary { cursor: pointer; color: var(--text); font-size: 13px; font-weight: 700; padding: 2px 0; }
-.adv-now { display: block; margin: 2px 0 0 16px; color: var(--muted); font-size: 12px; font-weight: 400; }
-.adv[open] .adv-now { display: none; }
-.adv-body { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
-#dateSeps button { min-width: 30px; padding: 0 9px; }
+/* 日付の書式: 決まった書式の札（例は今日の日付）・自分で書く書式と、押すと入れる記号 */
+.datepats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.datepats button, .datepats select { height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px;
+  font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap; }
+.datepats select { padding: 0 6px; color: var(--muted); }
+.datepats button:hover, .datepats select:hover { border-color: var(--muted); }
+/* 選んだ形: 赤い縁と太字（色だけにしない） */
+.datepats button[aria-pressed="true"], .datepats select.on { border-color: var(--accent); color: var(--accent); font-weight: 700; box-shadow: inset 0 0 0 1px var(--accent); }
+.datecustom { margin-top: 6px; }
+.datecustom[hidden] { display: none; }
+.datecustom input { width: 100%; font-family: ui-monospace, Consolas, monospace; }
+.tokens { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tokens button { display: inline-flex; gap: 4px; align-items: baseline; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.tokens button b { font-family: ui-monospace, Consolas, monospace; }
+.tokens button span { color: var(--muted); }
+.tokens button:hover { border-color: var(--muted); }
 
 /* ---------------------------------------------------------------- 印とコピー */
-.stage { width: min(100%, 640px, calc(100vh / var(--zoom) - 340px)); aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 14px; }
-body:has(.notices:not([hidden])) .stage { width: min(100%, 640px, calc(100vh / var(--zoom) - 410px)); }
+.stage { width: 100%; aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 14px; }
+body:has(.notices:not([hidden])) .pstack { width: min(640px, calc(100vh / var(--zoom) - 410px), calc(100cqw - var(--side))); }
 .stage.checker { background: repeating-conic-gradient(var(--ck1) 0 25%, var(--ck2) 0 50%) 0 0 / 20px 20px; }
 .stage.paper { background: #fff; }
 .stage canvas { width: 84%; height: 84%; }
@@ -167,7 +181,15 @@ body:has(.notices:not([hidden])) .stage { width: min(100%, 640px, calc(100vh / v
 .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 /* 狭い列（1280 の窓で画面の文字を大きくした所など）: 主のボタンの最小の幅を外して 1 段に保つ */
 .preview { container-type: inline-size; }
-@container (max-width: 560px) { .actions { flex-wrap: nowrap; } .actions .btn { padding: 10px 12px; } .actions .btn.primary { min-width: 0; } }
+@container (max-width: 560px) { .actions .btn { padding: 10px 12px; } .actions .btn.primary { min-width: 0; } }
+/* とても狭いとき（1280 の窓で画面の文字を大きくした所など）: 札を細くし、ボタンは並びに収まらなければ折り返す（札に重ねない） */
+@container (max-width: 600px) { .pstack { --side: 186px; } .tune { flex-basis: 172px; padding: 10px 12px; } .tune .ticks { display: none; } .actions { gap: 6px; } .actions .btn { padding: 8px 10px; font-size: 13px; } }
+.checklink span { white-space: nowrap; }
+/* 広い画面: 札を広げ、目盛りを詰めない */
+@container (min-width: 900px) { .pstack { --side: 264px; } .tune { flex-basis: 240px; } }
+/* 印の並びが狭いとき（1280 の窓など）: ボタンのキーの札と地の説明を出さず、キーは下の説明の文に書く（1 段に保つ） */
+.narrow-only { display: none; }
+@container (max-width: 760px) { .actions .btn.primary { min-width: 0; } .actions .btn { padding: 10px 14px; } .actions kbd, .wide-only { display: none; } .narrow-only { display: inline; } .bgrow .lbl { white-space: nowrap; } }
 
 .btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; padding: 10px 16px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
 .btn:hover { border-color: var(--muted); }

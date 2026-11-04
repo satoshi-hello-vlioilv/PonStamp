@@ -75,6 +75,8 @@ export const STATES = [
   { name: 'date', seed: SEED, run: async (page) => clickType(page, 'date') },
   { name: 'square', seed: SEED, run: async (page) => clickType(page, 'square') },
   { name: 'advanced', seed: SEED, run: async (page) => openAdvanced(page) },
+  // 日付印で書式を自分で書いた所（「ほかの形」の「自分で書く…」が無い画面では、日付印を出すだけ）
+  { name: 'datecustom', seed: SEED, run: async (page) => { await clickType(page, 'date'); if (await page.locator('#inDateMore').count()) { await page.selectOption('#inDateMore', '__own'); await page.fill('#inDateTpl', 'ggge年m月d日(aaa)'); await page.locator('#inName').click(); } } },
   { name: 'update', seed: UPDATE, run: async () => {} },
   { name: 'settings', seed: UPDATE, run: async (page) => openSettings(page) },
   { name: 'distribution', seed: SEED, run: async (page) => openDistribution(page) },
