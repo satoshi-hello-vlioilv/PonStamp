@@ -4,7 +4,7 @@ import { createNotices, createSettings, loadVersion, verText } from './settings.
 import { createZoom } from './zoom.js';
 import * as P from './presets.js';
 import { RULER_MM, drawRuler } from './ruler.js';
-import { ADV_DEFAULTS, COLORS, DATE_FORMATS, DATE_SEPS, DEFAULTS, FONT_CANDIDATES, TEXT_SIZE, TYPES, clamp, clone, dateText, exportPx, merge, render, stampDate, todayISO } from './stamp.js';
+import { ADV_DEFAULTS, COLORS, DATE_PRESETS, DATE_TOKENS, DEFAULTS, FONT_CANDIDATES, TEXT_SIZE, TYPES, clamp, clone, exportPx, formatDate, merge, render, stampDate, todayISO } from './stamp.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -104,11 +104,47 @@ function syncSize() {
   }, mm)));
 }
 
-// 日付の書式（例は今日・指定した日の日付）と区切り
+// 日付の書式: よく使う形の札（例は今日・指定した日の日付）と、札の並びの最後の「ほかの形」の一覧（残りの形・自分で書く）。
+// 書く箱は、自分で書くと選んだときと、いまの書式が決まった形に無いときだけ出す
+const OWN = '__own';
+let dateOwn = false, shownTpl = '';
 function buildDate() {
-  const sel = $('#inDateFmt');
-  for (const f of DATE_FORMATS) sel.add(new Option('', f.v));
-  fill($('#dateSeps'), DATE_SEPS.map(d => h('button', { type: 'button', 'data-choice': 'dateSep', 'data-v': d.v, title: `区切りを「${d.label}」にする` }, d.label)));
+  const box = $('#datePresets'), more = $('#inDateMore'), tpl = $('#inDateTpl');
+  box.prepend(...DATE_PRESETS.filter(p => p.quick).map(p => h('button', { type: 'button', 'data-choice': 'dateTpl', 'data-v': p.v, title: `書式 ${p.v}`, onclick: () => { dateOwn = false; } })));
+  more.addEventListener('change', () => {
+    if (more.value === OWN) { dateOwn = true; update(); tpl.focus(); return; }
+    if (more.value) { dateOwn = false; S.dateTpl = more.value; update(); }
+  });
+  // 空の書式は使わない（打ち直している途中は前の形のまま描く）。離れたら、いま使っている書式に戻して見せる
+  tpl.addEventListener('input', () => { if (tpl.value.trim()) { S.dateTpl = tpl.value; update(); } });
+  tpl.addEventListener('blur', () => { tpl.value = S.dateTpl; });
+  fill($('#dateTokens'), DATE_TOKENS.map(([t, note]) => h('button', {
+    type: 'button', 'data-token': t, title: `${note}を入れる`,
+    onclick: () => {
+      const a = tpl.selectionStart ?? tpl.value.length, b = tpl.selectionEnd ?? a;
+      tpl.value = tpl.value.slice(0, a) + t + tpl.value.slice(b);
+      tpl.focus(); tpl.setSelectionRange(a + t.length, a + t.length);
+      S.dateTpl = tpl.value; update();
+    },
+  }, h('b', {}, t), h('span', {}, ''))));
+}
+function syncDate() {
+  const d = stampDate(S), ex = tpl => formatDate(tpl, d);
+  $$('#datePresets [data-v]').forEach(b => { b.textContent = ex(b.dataset.v); });
+  const preset = DATE_PRESETS.find(p => p.v === S.dateTpl);
+  const tpl = $('#inDateTpl');
+  // 書く箱の外で書式が変わった（登録した印を呼び出した など）ら、決まった形はその形で見せる
+  if (S.dateTpl !== shownTpl && tpl !== document.activeElement) dateOwn = false;
+  shownTpl = S.dateTpl;
+  const own = dateOwn || !preset;
+  // ほかの形の一覧: いまの形がここにあれば、それを選んだ形で見せる（札と同じ赤い縁）
+  const more = $('#inDateMore');
+  fill(more, [new Option('ほかの形', ''), ...DATE_PRESETS.filter(p => !p.quick).map(p => new Option(ex(p.v), p.v)), new Option('自分で書く…', OWN)]);
+  more.value = own ? OWN : preset.quick ? '' : preset.v;
+  more.classList.toggle('on', own || !preset.quick);
+  $('#dateCustom').hidden = !own;
+  if (tpl !== document.activeElement) tpl.value = S.dateTpl;
+  $$('#dateTokens [data-token]').forEach(b => { b.lastChild.textContent = ex(b.dataset.token); });
 }
 
 function syncUI() {
@@ -137,11 +173,7 @@ function syncUI() {
     pick.value = S.color;
     pick.parentElement.setAttribute('aria-pressed', String(!COLORS.some(c => c.v.toLowerCase() === S.color.toLowerCase())));
   }
-  // 日付の書式の例は今日（指定した日）の日付・いまの区切りで出す
-  $$('#inDateFmt option').forEach((o, i) => { o.textContent = `${dateText({ ...S, dateFmt: o.value })}（${DATE_FORMATS[i].note}）`; });
-  // 詳細設定を閉じていても、いまの値が見えるように
-  const font = $('#inFont').selectedOptions[0]?.textContent || '';
-  $('#advNow').textContent = `${font}・枠 ${S.border}・字の太さ ${S.bold}・かすれ ${S.kasure}・傾き ${S.tilt}°`;
+  syncDate();
   $('#stage').className = `stage ${S.bg}`;
   syncSize();
   const px = exportPx(S);
@@ -394,7 +426,8 @@ function bind() {
     if (S.kasure === 0) S.kasure = ADV_DEFAULTS.kasure;
     update();
   });
-  $('#btnResetAdv').addEventListener('click', () => { Object.assign(S, ADV_DEFAULTS); update(); });
+  // 「大きさと風合い」の札の 6 つ（いまの種類の印の大きさ・字の大きさ・枠・字の太さ・かすれ・傾き）を初めの値に
+  $('#btnResetAdv').addEventListener('click', () => { Object.assign(S, ADV_DEFAULTS); S.size[S.type] = DEFAULTS.size[S.type]; update(); });
   $('#btnCopy').addEventListener('click', copyStamp);
   $('#btnSave').addEventListener('click', saveStamp);
   $('#btnFolder').addEventListener('click', () => backend.openFolder().catch(e => toast(e.message, true)));
@@ -452,32 +485,8 @@ async function init() {
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   renderPresets();
   update();
-  openAdvancedIfRoom();
-  // 利用者が自分で開け閉めした（押した後の形を覚える）
-  $('details.adv > summary').addEventListener('click', () => setTimeout(() => { try { localStorage.setItem(ADV_KEY, $('details.adv').open ? '1' : '0'); } catch { /* 覚えられなくても使える */ } }));
-  addEventListener('resize', openAdvancedIfRoom);
   bindWindow();
   backend.ready().catch(() => {});
-}
-
-// 詳細設定の開け閉め: 利用者が自分で開け閉めしたら、その形を覚えて守る（この PC の画面の覚え）。
-// 決めていなければ窓の大きさだけで決める: いちばん入力の多い日付印で詳細を開いても入力の列に収まる窓なら開く。
-// 種類を変えても開け閉めは変えない（勝手に開いたり閉じたりすると、欄を探させる）
-const ADV_KEY = 'ponstamp.advOpen';
-function advChoice() {
-  try { const v = localStorage.getItem(ADV_KEY); return v === null ? null : v === '1'; } catch { return null; }
-}
-function openAdvancedIfRoom() {
-  const adv = $('details.adv'), panel = $('.panel');
-  const chosen = advChoice();
-  if (chosen !== null) { adv.open = chosen; return; }
-  // 日付印の欄を出した形で測ってから戻す（描く前なので、画面には出ない）
-  const shown = $$('[data-for]').map(el => [el, el.classList.contains('hidden')]);
-  shown.forEach(([el]) => el.classList.toggle('hidden', !el.dataset.for.split(' ').includes('date')));
-  adv.open = true;
-  const fits = panel.scrollHeight <= panel.clientHeight + 1;
-  shown.forEach(([el, was]) => el.classList.toggle('hidden', was));
-  adv.open = fits;
 }
 
 /** 新しい版を取り込んでいれば、設定のボタンに札を付ける（知らせの帯を閉じても、どこにあるか分かる） */

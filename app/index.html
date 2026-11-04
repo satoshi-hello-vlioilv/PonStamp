@@ -10,7 +10,8 @@
 <body>
 <!-- 形（2026-10 の改良で決めた G2「アプリの殻」）: 左の帯に登録した印・中に入力・右に印とコピー。設定は右上から引き出す。
      窓の高さにぴったり収め、頁ごとは送らない（入力の列が長いときは列の中だけ送る）。
-     入力の列（v2 で決めた L）: 種類 → 印の文字（字の大きさまで）→ 印の見た目（色・大きさ）→ 書体と風合いの箱。広い画面では左の帯を広げ、登録した印を大きな見本で並べる -->
+     入力の列（v2 で決めた L・v6 で直した）: 種類 → 印の文字（日付の書式まで）→ 印の見た目（色・書体）。スライダーは印の右の「大きさと風合い」の札に集める（v6 で決めた B2）。
+     広い画面では左の帯を広げ、登録した印を大きな見本で並べる -->
 <!-- 見出し（v4 で決めた G）: 名前のすぐ隣に版の札（押すと更新履歴）。右に画面の文字の大きさ（− 100% ＋）と設定 -->
 <header class="top">
   <div class="brand"><span class="logo" aria-hidden="true">印</span>電子印メーカー
@@ -64,13 +65,13 @@
         <label class="check nowrap"><input type="checkbox" data-key="dateAuto"> 常に今日</label>
         <input id="inDate" type="date" data-key="date" aria-label="日付を指定">
       </div>
-      <div class="row mt">
-        <select id="inDateFmt" data-key="dateFmt" aria-label="日付の書式（年の書き方）"></select>
+      <!-- 書式（v6 で決めた B2）: よく使う形の札（例は今日・指定した日の日付）と、最後に「ほかの形」の一覧（残りの形・自分で書く）。自分で書くときだけ書く箱 -->
+      <div class="datepats" id="datePresets" role="group" aria-label="日付の書式（押すとその形）">
+        <select id="inDateMore" aria-label="ほかの形・自分で書く"></select>
       </div>
-      <div class="row mt">
-        <span class="lbl">区切り</span>
-        <div class="pills" id="dateSeps" role="group" aria-label="日付の区切り"></div>
-        <label class="check nowrap" title="10 月より前の月・10 日より前の日を 01 のように 2 桁で書く"><input type="checkbox" data-key="pad"> 月日を2桁（01）</label>
+      <div class="datecustom" id="dateCustom" hidden>
+        <input id="inDateTpl" type="text" autocomplete="off" spellcheck="false" placeholder="例：yyyy/m/d" aria-label="日付の書式（自分で書く）">
+        <div class="tokens" id="dateTokens" role="group" aria-label="書式の記号（押すと入れる）"></div>
       </div>
     </div>
 
@@ -87,65 +88,61 @@
       </div>
     </div>
 
-    <!-- 字の大きさは字の物なので「印の文字」の下。スライダーはどれも「名前 ｜ 帯 ｜ 値」の 1 行 -->
-    <div class="field slider">
-      <div class="lblrow"><label for="rgText" title="印の中の字の大きさ（画面の文字の大きさは右上）">印の字の大きさ</label><output data-out="textSize"></output></div>
-      <input id="rgText" type="range" min="60" max="110" step="5" data-key="textSize">
-    </div>
-
     <h3 class="grp">印の見た目</h3>
     <div class="field line">
       <span class="lbl">色</span>
       <div class="swatches" id="swatches"></div>
     </div>
-
-    <div class="field slider" id="sizeField">
-      <div class="lblrow"><label for="rgSize" title="印影の直径（角印は一辺）">大きさ</label>
-        <span class="val"><input id="inSize" type="number" min="5" max="60" step="0.5" aria-label="大きさ（mm）"> mm</span></div>
-      <input id="rgSize" type="range" step="0.5" aria-describedby="sizeTicks">
-      <div class="ticks" id="sizeTicks" aria-label="よく使う大きさ"></div>
+    <div class="field line">
+      <label for="inFont" class="lbl">書体</label>
+      <select id="inFont" data-key="font"></select>
     </div>
-
-    <details class="adv">
-      <summary>書体と風合い <span class="adv-now" id="advNow"></span></summary>
-      <div class="adv-body">
-        <div class="field">
-          <label for="inFont">書体</label>
-          <select id="inFont" data-key="font"></select>
-        </div>
-        <div class="field slider"><label for="rgBorder">枠の太さ</label><input id="rgBorder" type="range" min="1.5" max="9" step="0.5" data-key="border"><output data-out="border"></output></div>
-        <div class="field slider"><label for="rgBold">字の太さ</label><input id="rgBold" type="range" min="0" max="10" step="1" data-key="bold"><output data-out="bold"></output></div>
-        <div class="field slider"><label for="rgKasure">かすれ</label><input id="rgKasure" type="range" min="0" max="100" step="5" data-key="kasure"><output data-out="kasure"></output></div>
-        <div class="field slider"><label for="rgTilt">傾き</label><input id="rgTilt" type="range" min="-15" max="15" step="1" data-key="tilt"><output data-out="tilt"></output></div>
-        <div class="row">
-          <button type="button" class="btn small" id="btnReseed">かすれ模様を変える</button>
-          <button type="button" class="btn small" id="btnResetAdv">詳細を初期値に戻す</button>
-        </div>
-      </div>
-    </details>
   </section>
 
-  <!-- 右：プレビューと出力 -->
+  <!-- 右：印とコピー（印・寸法・地・コピーの行は 1 本の縦の並び）と、その右に「大きさと風合い」の札（スライダーはここだけ。動かした結果をすぐ隣で見る） -->
   <section class="preview" aria-label="プレビュー">
-    <div class="stage checker" id="stage">
-      <canvas id="pv" width="640" height="640" role="img" aria-label="印影のプレビュー"></canvas>
-    </div>
-    <div class="meta" id="meta"></div>
-    <div class="bgrow">
-      <span class="lbl">プレビューの地</span>
-      <div class="pills small" role="group" aria-label="プレビューの地">
-        <button type="button" data-choice="bg" data-v="checker">透明</button>
-        <button type="button" data-choice="bg" data-v="paper">白紙</button>
+    <div class="pstack">
+      <div class="stage checker" id="stage">
+        <canvas id="pv" width="640" height="640" role="img" aria-label="印影のプレビュー"></canvas>
       </div>
-      <span class="hint">書き出す PNG はいつも透明です</span>
+      <div class="meta" id="meta"></div>
+      <div class="bgrow">
+        <span class="lbl">プレビューの地</span>
+        <div class="pills small" role="group" aria-label="プレビューの地">
+          <button type="button" data-choice="bg" data-v="checker">透明</button>
+          <button type="button" data-choice="bg" data-v="paper">白紙</button>
+        </div>
+        <span class="hint wide-only">書き出す PNG はいつも透明です</span>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="btnCopy" title="コピー（Ctrl+Enter）">コピー<kbd>Ctrl+Enter</kbd></button>
+        <button type="button" class="btn" id="btnSave" title="PNG で保存（Ctrl+S）">PNG保存<kbd>Ctrl+S</kbd></button>
+        <button type="button" class="btn" id="btnFolder">保存フォルダ</button>
+      </div>
+      <!-- 狭いときはボタンのキーの札を出さないので、キーは説明の文に書く（思い出させない） -->
+      <p class="hint center">Excel・Word などで Ctrl+V で貼り付け。<span class="narrow-only">コピー Ctrl+Enter・保存 Ctrl+S・</span>登録した印は Ctrl+1〜9 でもコピー</p>
+      <!-- 狭いときは言葉の切れ目（→ の前）で折る -->
+      <button type="button" class="checklink" id="btnCheck" data-open="check"><span>貼った大きさが違うときは</span> <span>→ 大きさを確かめる</span></button>
     </div>
-    <div class="actions">
-      <button type="button" class="btn primary" id="btnCopy">コピー<kbd>Ctrl+Enter</kbd></button>
-      <button type="button" class="btn" id="btnSave">PNG保存<kbd>Ctrl+S</kbd></button>
-      <button type="button" class="btn" id="btnFolder">保存フォルダ</button>
-    </div>
-    <p class="hint center">Excel・Word などで Ctrl+V で貼り付け。登録した印は Ctrl+1〜9 でもコピー</p>
-    <button type="button" class="checklink" id="btnCheck" data-open="check">貼った大きさが違うときは → 大きさを確かめる</button>
+    <section class="tune" aria-labelledby="tuneTitle">
+      <h3 class="tune-h" id="tuneTitle">大きさと風合い</h3>
+      <!-- どれも「名前 ｜ 値」の行と、その下の帯 -->
+      <div class="field slider" id="sizeField">
+        <div class="lblrow"><label for="rgSize" title="印影の直径（角印は一辺）">印の大きさ</label>
+          <span class="val"><input id="inSize" type="number" min="5" max="60" step="0.5" aria-label="印の大きさ（mm）"> mm</span></div>
+        <input id="rgSize" type="range" step="0.5" aria-describedby="sizeTicks">
+        <div class="ticks" id="sizeTicks" aria-label="よく使う大きさ"></div>
+      </div>
+      <div class="field slider"><label for="rgText" title="印の中の字の大きさ（100% が標準。大きくすると枠に少し重なる。画面の文字の大きさは右上）">字の大きさ</label><input id="rgText" type="range" min="60" max="125" step="5" data-key="textSize"><output data-out="textSize"></output></div>
+      <div class="field slider"><label for="rgBorder">枠の太さ</label><input id="rgBorder" type="range" min="1.5" max="9" step="0.5" data-key="border"><output data-out="border"></output></div>
+      <div class="field slider"><label for="rgBold">字の太さ</label><input id="rgBold" type="range" min="0" max="10" step="1" data-key="bold"><output data-out="bold"></output></div>
+      <div class="field slider"><label for="rgKasure" title="枠の縁が欠ける強さ（字はほとんど欠けない）">かすれ</label><input id="rgKasure" type="range" min="0" max="100" step="5" data-key="kasure"><output data-out="kasure"></output></div>
+      <div class="field slider"><label for="rgTilt">傾き</label><input id="rgTilt" type="range" min="-15" max="15" step="1" data-key="tilt"><output data-out="tilt"></output></div>
+      <div class="tune-btns">
+        <button type="button" class="btn small" id="btnReseed">かすれ模様を変える</button>
+        <button type="button" class="btn small" id="btnResetAdv">すべて初期値に戻す</button>
+      </div>
+    </section>
   </section>
   </main>
   </div>

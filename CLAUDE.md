@@ -46,6 +46,7 @@ cargo fmt --all --check && cargo clippy --locked --workspace --all-targets -- -D
 # 3. テスト（Rust・Node）
 cargo test --locked --workspace   # 窓・部品・道具（版の上げ忘れ・配る ZIP の形・採点の決め方も）
 node tools/presets-eval.mjs && node tools/ruler-eval.mjs && node tools/presets-flow-eval.mjs   # 画面の評価関数（登録した印・ものさし）
+node tools/date-eval.mjs && node tools/textsize-eval.mjs && node tools/kasure-eval.mjs         # 日付の書式・字の大きさの上限・かすれ
 ```
 
 - 型検査の道具（TypeScript）は入れていないので、JavaScript は構文の確かめで代えている。入れたら差し替える。Rust はコンパイラが型を確かめる。

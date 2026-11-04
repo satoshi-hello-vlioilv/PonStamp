@@ -35,6 +35,9 @@ jobs:
           node tools/presets-eval.mjs
           node tools/ruler-eval.mjs
           node tools/presets-flow-eval.mjs
+          node tools/date-eval.mjs
+          node tools/textsize-eval.mjs
+          node tools/kasure-eval.mjs
 
   desktop:
     runs-on: ubuntu-latest
